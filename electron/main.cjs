@@ -680,7 +680,7 @@ function registerMapShortcut() {
   if (!accelerator) return false;
   try {
     mapShortcutRegistered = globalShortcut.register(accelerator, () => {
-      if (licenseBlocked) return;
+      if (licenseBlocked || !overlayFocusActive) return;
       const now = Date.now();
       const isFreshPress = now - lastMapShortcutFireAt >= MAP_SHORTCUT_DEBOUNCE_MS;
       lastMapShortcutFireAt = now;
@@ -741,7 +741,7 @@ function startCursorHook() {
     if (licenseBlocked) return;
     const mapCode = mapShortcutRegistered ? null : cursorCodeFrom(readSettings().mapKey);
     if (mapCode != null && e.keycode === mapCode) {
-      if (!mapKeyHeld) {
+      if (overlayFocusActive && !mapKeyHeld) {
         mapKeyHeld = true;
         toggleFullMap();
       }
