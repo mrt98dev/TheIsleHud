@@ -21,6 +21,12 @@ type MapResp = {
 const RANGE_UV = [0.05, 0.1, 0.2, 0.4];
 const RANGE_LABEL = ["CLOSE", "MID", "FAR", "MAX"];
 
+// Live position frames can arrive far faster than the radar needs to redraw.
+// Batch them to one state update per LIVE_RENDER_INTERVAL_MS instead of one
+// per frame, same as the overlay's own live-position consumer.
+const LIVE_RENDER_INTERVAL_MS = 50;
+const LIVE_STALE_MS = 4000;
+
 function centroidUV(cal: MapCalibration, points: { x: number; y: number }[]): { u: number; v: number } | null {
   if (!points.length) return null;
   const cx = points.reduce((s, p) => s + p.x, 0) / points.length;
@@ -72,8 +78,27 @@ export function RadarWindow() {
   }, [hasPosition, refresh]);
 
   useEffect(() => {
-    const off = window.isleOverlay.onLive(setLive);
-    return off;
+    let pending: LiveFrame | null = null;
+    let flushTimer: number | null = null;
+    let staleTimer: number | null = null;
+    const flush = () => {
+      flushTimer = null;
+      if (!pending) return;
+      const next = pending;
+      pending = null;
+      setLive(next);
+      if (staleTimer != null) window.clearTimeout(staleTimer);
+      staleTimer = window.setTimeout(() => setLive(null), LIVE_STALE_MS);
+    };
+    const off = window.isleOverlay.onLive((d) => {
+      pending = d;
+      if (flushTimer == null) flushTimer = window.setTimeout(flush, LIVE_RENDER_INTERVAL_MS);
+    });
+    return () => {
+      off();
+      if (flushTimer != null) window.clearTimeout(flushTimer);
+      if (staleTimer != null) window.clearTimeout(staleTimer);
+    };
   }, []);
 
   useEffect(() => {

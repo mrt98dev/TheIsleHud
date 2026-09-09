@@ -26,6 +26,13 @@ const FOOD_COLORS = new Map(
   ISLE_FOOD_SPAWNS.map((f, i, a) => [f.type, `hsl(${Math.round((i * 360) / a.length)} 70% 55%)`]),
 );
 
+// Live position frames can arrive far faster than the map needs to redraw
+// (every marker/POI shape re-renders on each update). Batch them to one
+// state update per LIVE_RENDER_INTERVAL_MS instead of one per frame, same
+// as the overlay/menu window's own live-position consumers.
+const LIVE_RENDER_INTERVAL_MS = 50;
+const LIVE_STALE_MS = 4000;
+
 export function LiveMapTab({ authed, onLogin }: { authed: boolean; onLogin: () => void }) {
   const [data, setData] = useState<MapResp | null>(null);
   const [loading, setLoading] = useState(true);
@@ -59,8 +66,27 @@ export function LiveMapTab({ authed, onLogin }: { authed: boolean; onLogin: () =
   }, [authed, refresh]);
 
   useEffect(() => {
-    const off = window.isleOverlay.onLive(setLive);
-    return off;
+    let pending: LiveFrame | null = null;
+    let flushTimer: number | null = null;
+    let staleTimer: number | null = null;
+    const flush = () => {
+      flushTimer = null;
+      if (!pending) return;
+      const next = pending;
+      pending = null;
+      setLive(next);
+      if (staleTimer != null) window.clearTimeout(staleTimer);
+      staleTimer = window.setTimeout(() => setLive(null), LIVE_STALE_MS);
+    };
+    const off = window.isleOverlay.onLive((d) => {
+      pending = d;
+      if (flushTimer == null) flushTimer = window.setTimeout(flush, LIVE_RENDER_INTERVAL_MS);
+    });
+    return () => {
+      off();
+      if (flushTimer != null) window.clearTimeout(flushTimer);
+      if (staleTimer != null) window.clearTimeout(staleTimer);
+    };
   }, []);
 
   const players = useMemo<MapPlayerShape[]>(() => {
