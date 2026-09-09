@@ -665,6 +665,12 @@ function toggleFullMap() {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("fullMap:changed", fullMapOpen);
 }
 
+// globalShortcut has no keyup event, so holding the key past the OS's key-repeat
+// delay re-fires this callback several times per press; debounce on the leading
+// edge so one held press toggles once instead of flickering open/closed.
+let lastMapShortcutFireAt = 0;
+const MAP_SHORTCUT_DEBOUNCE_MS = 500;
+
 function registerMapShortcut() {
   if (!app.isReady()) return false;
   if (mapShortcutAccelerator) globalShortcut.unregister(mapShortcutAccelerator);
@@ -674,7 +680,11 @@ function registerMapShortcut() {
   if (!accelerator) return false;
   try {
     mapShortcutRegistered = globalShortcut.register(accelerator, () => {
-      if (!licenseBlocked) toggleFullMap();
+      if (licenseBlocked) return;
+      const now = Date.now();
+      const isFreshPress = now - lastMapShortcutFireAt >= MAP_SHORTCUT_DEBOUNCE_MS;
+      lastMapShortcutFireAt = now;
+      if (isFreshPress) toggleFullMap();
     });
     if (mapShortcutRegistered) mapShortcutAccelerator = accelerator;
   } catch {
