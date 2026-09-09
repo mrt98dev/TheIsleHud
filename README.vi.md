@@ -7,8 +7,10 @@ HUD trong game có thể tùy chỉnh cho Windows, dành cho **The Isle**, dựa
 
 HUD ưu tiên tiếng Việt với lớp phủ (overlay) hiển thị liên tục trong game,
 các widget có thể di chuyển, minimap, dữ liệu người chơi trực tiếp, và la bàn
-định vị/bạn bè mượt mà. Nhấn `F8` để mở hoặc đóng bảng điều khiển; HUD vẫn
-hiển thị trong khi bạn chơi.
+định vị/bạn bè mượt mà. Bảng điều khiển/menu (các tab và Cài đặt) chạy trong
+một cửa sổ Windows bình thường riêng, tự mở khi khởi động app; sau đó bạn ẩn
+hoặc hiện lại cửa sổ đó qua taskbar hoặc icon khay hệ thống (tray). Lớp phủ
+trong game không có phím tắt nào để mở nó, và vẫn hiển thị trong khi bạn chơi.
 
 > [!IMPORTANT]
 > Dự án này là bản phái sinh xây dựng trên
@@ -25,8 +27,8 @@ hiển thị trong khi bạn chơi.
 ### Bố cục HUD đầy đủ trong game
 
 Minimap, danh sách kiểm tra Prime, la bàn, chỉ số dạng vòng tròn, và các widget
-HUD khác luôn hiển thị trong khi chơi. Mở bảng điều khiển bằng `F8` để kéo từng
-widget hoặc tự do thay đổi kích thước/tỷ lệ.
+HUD khác luôn hiển thị trong khi chơi. Bật "Chỉnh vị trí HUD" trong Cài đặt của
+cửa sổ menu để kéo từng widget hoặc tự do thay đổi kích thước/tỷ lệ.
 
 ![Bố cục HUD đầy đủ trong game của TheIsleHud](docs/images/hud-prime-and-stats.png)
 
@@ -50,16 +52,35 @@ tên bạn bè hiển thị với ký hiệu `BẠN` và khoảng cách hiện t
   khi game không hoạt động.
 - Đăng nhập Steam qua deep link; bearer token được giữ trong tiến trình chính
   (main process) của Electron thay vì lộ ra ở renderer React.
-- `F8` chỉ mở hoặc đóng bảng điều khiển; các widget HUD đã bật vẫn hiển thị
-  trong game.
+- Chỉ còn hiển thị La bàn, Chỉ số (Stats), danh sách Prime, Heart HUD,
+  Radar/minimap, và widget thông tin máy chủ; bảng điều khiển/menu với các tab
+  và Cài đặt nằm ở một cửa sổ riêng (xem bên dưới), không còn nút hay phím tắt
+  nào trong overlay để mở nó.
+- Một phím tắt có thể đổi được (mặc định `M`, đổi trong Cài đặt của cửa sổ
+  menu tại mục "Phím mở bản đồ") mở một panel bản đồ lớn, gần full màn hình,
+  đè lên game — tái dùng đúng giao diện Live Map cũng có ở tab trong cửa sổ
+  menu; nhấn lại phím đó, `Esc`, hoặc nút đóng trên màn hình để tắt panel.
 - Widget cho chỉ số, tiến trình Prime, tim/máu, la bàn và radar có thể kéo và
-  thay đổi kích thước tự do. Tay cầm resize chỉ hiện khi bảng điều khiển đang mở.
+  thay đổi kích thước tự do. Tay cầm resize chỉ hiện khi bật "Chỉnh vị trí
+  HUD" trong Cài đặt của cửa sổ menu.
 - Tiếng Việt là ngôn ngữ mặc định, kèm bộ chọn ngôn ngữ Anh/Việt cho người chơi.
 - Thương hiệu máy chủ và endpoint backend do nhà phát triển kiểm soát, cùng độ
   trong suốt HUD, nền trong suốt, màu nhấn/màu chỉ số, chế độ streamer, và chế
   độ tương thích cho người chơi.
 - Widget máy chủ tùy chọn dành cho các bản build có cung cấp GameMonitoring
   server ID. Bản build thông thường (generic) sẽ tắt tích hợp này.
+
+### Cửa sổ menu
+
+- Một cửa sổ Windows riêng, có thể resize và di chuyển, có mục riêng trên
+  taskbar (không luôn nổi trên cùng) chứa các tab bảng điều khiển (Profile,
+  Live Map, Skin Editor, Garage, Dino Shop, Skin Shop, Support, Map Editor)
+  và Cài đặt.
+- Tự mở khi app khởi động; sau đó ẩn/hiện lại qua taskbar hoặc mục "Show /
+  hide menu" trên icon tray — không có phím tắt nào trong game để mở nó.
+- Cài đặt ở đây còn có "Chỉnh vị trí HUD" để tạm thời kéo/resize widget
+  overlay, và "Phím mở bản đồ" để đổi phím (mặc định `M`) mở panel bản đồ
+  full màn hình.
 
 ### Bảng điều khiển và HUD người chơi
 
@@ -158,7 +179,7 @@ dùng cho một bản cài đặt mới:
 - `apiBaseUrl` chọn backend tương thích.
 - `language` nhận giá trị `en` hoặc `vi`.
 - `statsStyle` nhận giá trị `bars` hoặc `circles`.
-- `dashKey`, `radarShape`, và `accentColor` thiết lập giá trị khởi tạo của chúng.
+- `mapKey`, `radarShape`, và `accentColor` thiết lập giá trị khởi tạo của chúng.
 - `gameMonitoringServerId` là `null` trong cấu hình thông thường (generic), điều
   này ẩn widget trạng thái máy chủ và ngăn các yêu cầu tới GameMonitoring.
 - `defaultUserSettings` chứa bố cục widget mặc định đã được làm sạch, tỷ lệ,

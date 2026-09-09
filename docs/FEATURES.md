@@ -7,12 +7,13 @@ Tài liệu này liệt kê toàn bộ tính năng của TheIsleHud, mỗi mục
 
 ## 0. Kiến trúc nền cho phần luồng chạy
 
-Ứng dụng có **2 tiến trình Electron** và **2 React root**:
+Ứng dụng có **1 tiến trình Electron main** và **3 React root**, mỗi root là một cửa sổ (`BrowserWindow`) riêng, chọn theo `location.hash`:
 
 - **Main process** — [electron/main.cjs](../electron/main.cjs): quản lý cửa sổ, bám theo game, hotkey toàn cục, xác thực Steam, gọi API/WS thay renderer, auto-update.
-- **Renderer (overlay chính)** — [src/App.tsx](../src/App.tsx), chọn bởi `main.tsx` khi `location.hash` khác `#radar`.
+- **Renderer (overlay chính)** — [src/App.tsx](../src/App.tsx), chọn bởi `main.tsx` khi không có hash (mặc định). Trong suốt, click-through, chỉ chứa các widget hiển thị số liệu/bản đồ nhỏ và panel bản đồ full màn hình (xem mục 2).
+- **Renderer (menu)** — [src/MenuWindow.tsx](../src/MenuWindow.tsx), chọn khi `location.hash === "#menu"`. Chứa toàn bộ tab dashboard (Profile, Live Map, Skin Editor, Garage, Dino Shop, Skin Shop, Support, Map Editor) và `SettingsPanel`; chạy trong một `BrowserWindow` bình thường, có mục riêng trên taskbar, tự mở khi app khởi động (xem mục 2).
 - **Renderer (radar)** — [src/RadarWindow.tsx](../src/RadarWindow.tsx), cửa sổ Electron riêng, chọn khi `location.hash === "#radar"` ([src/main.tsx:7](../src/main.tsx:7)).
-- **Cầu nối** — [electron/preload.cjs](../electron/preload.cjs) expose duy nhất một object `window.isleOverlay` (xem [src/preload.d.ts](../src/preload.d.ts)) qua `contextBridge`; renderer không có quyền Node/`ipcRenderer` trực tiếp.
+- **Cầu nối** — [electron/preload.cjs](../electron/preload.cjs) expose duy nhất một object `window.isleOverlay` (xem [src/preload.d.ts](../src/preload.d.ts)) qua `contextBridge`; renderer không có quyền Node/`ipcRenderer` trực tiếp. Mỗi renderer (overlay/menu/radar) tự subscribe dữ liệu riêng qua object này — không chia sẻ React state giữa các cửa sổ.
 
 Mọi tính năng bên dưới đều đi qua object `isleOverlay` này theo 3 dạng: `getX()/setX()` (request-response), `onX(cb)` (subscribe sự kiện từ main), hoặc `apiGet/apiPost/apiGetFile` (proxy API có gắn sẵn Bearer token).
 
@@ -26,16 +27,19 @@ Mọi tính năng bên dưới đều đi qua object `isleOverlay` này theo 3 d
 - Renderer subscribe bằng `window.isleOverlay.onState(cb)`, cập nhật state `state` trong `App()` ([src/App.tsx:991](../src/App.tsx)).
 - Click-through bật/tắt bằng `setIgnoreMouseEvents(true, {forward:true})`; renderer có thể yêu cầu đổi qua `setMouseIgnore()` (kênh `overlay:mouseIgnore`).
 
-## 2. Dashboard (phím F8)
+## 2. Menu window & bản đồ full màn hình
 
-**Người dùng thấy gì:** nhấn `F8` để mở/đóng bảng điều khiển (dashboard) — nơi có các tab Profile, Live Map, Skin Editor, Garage, Dino Shop, Skin Shop, Support, và (nếu có quyền) Map Editor/Admin. Các widget HUD khác vẫn hiển thị trong game dù dashboard đóng hay mở.
+**Người dùng thấy gì:** bảng điều khiển (dashboard) không còn nằm trong overlay — nó là một cửa sổ Windows bình thường riêng ("Menu"), có mục riêng trên taskbar, có thể resize/di chuyển, không luôn nổi trên cùng, và **tự mở sẵn khi khởi động app**. Sau đó chỉ điều khiển qua taskbar hoặc icon tray ("Show / hide menu") — **không còn phím tắt nào** (F8 đã bị bỏ) hay nút nào trong overlay để mở nó. Cửa sổ Menu chứa các tab Profile, Live Map, Skin Editor, Garage, Dino Shop, Skin Shop, Support, và (nếu có quyền) Map Editor/Admin, cùng Settings.
+
+Trong lúc chơi, nhấn phím tắt riêng (mặc định `M`, đổi được trong Settings ở mục "Phím mở bản đồ") để mở một panel bản đồ lớn, gần full màn hình, đè lên overlay — xem chi tiết hơn so với minimap nhỏ. Nhấn lại phím đó, `Esc`, hoặc nút ❌ trên panel để đóng.
 
 **Luồng kỹ thuật:**
-- `registerDashShortcut()` ([electron/main.cjs:578-595](../electron/main.cjs)) đăng ký `globalShortcut` cho phím `dashKey` (mặc định `F8`, cấu hình tại [build.config.json](../build.config.json), đổi được qua `dash:recordKey`).
-- Khi bấm, main phát kênh `overlay:dash`; renderer nghe bằng `onDash(cb)`, set `mainOpen` trong `App()`, render `<MainWindow>` ([src/MainWindow.tsx:491](../src/MainWindow.tsx)).
-- `MainWindow` là tab-shell: state `tab` chọn component con để render (`DashboardTab`, `LiveMapTab`, `SkinEditorTab`, `GarageTab`, `MapEditorTab`, `AdminTab`, `DinoShopTab`, `SkinShopTab`), mỗi tab tự fetch dữ liệu qua `apiGet/apiPost` riêng.
-- Quyền truy cập tab `mapedit`/`admin` gác bởi state `mapEditAdmin`/`adminModeOn` ([src/MainWindow.tsx:517-518](../src/MainWindow.tsx), check tại dòng 570-575) — do backend trả về khi login, không phải cấu hình tĩnh.
-- Resize handle của các widget chỉ hiện khi dashboard đang mở.
+- `createMenuWindow()`/`openMenu()`/`closeMenu()`/`toggleMenu()` trong [electron/main.cjs](../electron/main.cjs) tạo `menuWindow` — `BrowserWindow` bình thường (`skipTaskbar:false`, `resizable/movable/minimizable/maximizable:true`, không `alwaysOnTop`); vị trí/kích thước lưu vào setting `menuBounds` (giống cơ chế `radarBounds`).
+- Renderer của cửa sổ này là `src/MenuWindow.tsx`, chọn khi `location.hash === "#menu"` (giống cách `#radar` chọn `RadarWindow.tsx`); chứa tab-shell (state `tab` chọn `DashboardTab`, `LiveMapTab`, `SkinEditorTab`, `GarageTab`, `MapEditorTab`, `AdminTab`, `DinoShopTab`, `SkinShopTab`) và `SettingsPanel`, mỗi tab tự fetch dữ liệu qua `apiGet/apiPost` riêng; `MenuWindow` tự lấy settings/auth/live/ticket qua IPC độc lập, không chia sẻ React state với overlay `App.tsx`.
+- Quyền truy cập tab `mapedit`/`admin` vẫn gác bởi state `mapEditAdmin`/`adminModeOn` (do backend trả về khi login, không phải cấu hình tĩnh) — không đổi so với trước, chỉ chuyển từ `MainWindow.tsx` sang `MenuWindow.tsx`.
+- Không còn `globalShortcut`/setting `dashKey` (đã xoá cùng IPC `dash:recordKey`, kênh `overlay:dash`, mục "Dashboard hotkey" trong Settings UI). Menu window chỉ toggle qua tray context-menu "Show / hide menu" (gọi `toggleMenu()`) hoặc click/double-click icon taskbar.
+- Bản đồ full màn hình: setting `mapKey` (mặc định `"M"`) đăng ký `globalShortcut` (thay cho `dashKey` cũ) gọi `toggleFullMap()` trong main → set cờ `fullMapOpen`, phát kênh `fullMap:changed` cho overlay. Renderer overlay render `src/FullMapOverlay.tsx` (bọc lại đúng component `LiveMapTab` dùng ở tab Live Map trong Menu window) khi `fullMapOpen === true`; đóng bằng nút ❌ gọi `window.isleOverlay.fullMap.toggle()`, phím `Esc` (bắt trong component), hoặc nhấn lại `mapKey`. Người dùng đổi phím `mapKey` trong Settings (Menu window) qua kênh ghi phím `map:recordKey`.
+- Resize handle của các widget overlay chỉ hiện khi bật **"Chỉnh vị trí HUD"** trong Settings (Menu window) — setting/cờ nội bộ `hudEditMode`, gửi qua IPC `hudEdit:set` từ Menu window, main phát lại `hudEdit:changed` cho overlay (đổi tên từ cờ `dashboardOpen` cũ). Cả `hudEditMode` và `fullMapOpen` cùng điều khiển việc tắt/mở click-through của overlay (`overlayInteractive = hudEditMode || fullMapOpen`).
 
 ## 3. Xác thực Steam
 
@@ -58,11 +62,11 @@ Mọi tính năng bên dưới đều đi qua object `isleOverlay` này theo 3 d
 
 ## 5. Radar & Live map
 
-**Người dùng thấy gì:** radar/minimap nổi, dạng tròn hoặc vuông, chỉnh được kích thước/phạm vi/nhãn; lọc hiển thị theo loại (sanctuary, khu di cư, khu tuần tra, địa điểm khác, bạn bè) — bộ lọc này dùng chung giữa Radar và Compass. Tab "Live Map" trong dashboard là bản đồ đầy đủ, có bộ lọc theo danh mục và các điểm spawn thức ăn.
+**Người dùng thấy gì:** radar/minimap nổi, dạng tròn hoặc vuông, chỉnh được kích thước/phạm vi/nhãn; lọc hiển thị theo loại (sanctuary, khu di cư, khu tuần tra, địa điểm khác, bạn bè) — bộ lọc này dùng chung giữa Radar và Compass. Tab "Live Map" trong cửa sổ Menu là bản đồ đầy đủ, có bộ lọc theo danh mục và các điểm spawn thức ăn. Trong lúc chơi, nhấn phím tắt bản đồ (mặc định `M`, đổi được trong Settings) để mở đúng giao diện Live Map đó dưới dạng một panel lớn gần full màn hình đè lên overlay, thay cho minimap nhỏ — xem mục 2.
 
 **Luồng kỹ thuật:**
 - Radar mini render qua [src/RadarPanel.tsx](../src/RadarPanel.tsx)/[src/RadarView.tsx](../src/RadarView.tsx); có thể tách ra cửa sổ Electron riêng (`RadarWindow`) — bật/tắt qua kênh `radar:toggle`, vị trí/kích thước cửa sổ được lưu qua `radar:setBounds` và khôi phục ở lần mở sau ([electron/main.cjs:464-522](../electron/main.cjs)).
-- Bản đồ đầy đủ: [src/LiveMapTab.tsx](../src/LiveMapTab.tsx) dùng [src/livemap/MapCanvas.tsx](../src/livemap/MapCanvas.tsx) (canvas vẽ tay, không dùng thư viện bản đồ ngoài) với hệ số hiệu chỉnh toạ độ tại [src/livemap/calibration.ts](../src/livemap/calibration.ts) và danh sách điểm spawn thức ăn tại [src/livemap/isle-food-spawns.ts](../src/livemap/isle-food-spawns.ts).
+- Bản đồ đầy đủ: [src/LiveMapTab.tsx](../src/LiveMapTab.tsx) dùng [src/livemap/MapCanvas.tsx](../src/livemap/MapCanvas.tsx) (canvas vẽ tay, không dùng thư viện bản đồ ngoài) với hệ số hiệu chỉnh toạ độ tại [src/livemap/calibration.ts](../src/livemap/calibration.ts) và danh sách điểm spawn thức ăn tại [src/livemap/isle-food-spawns.ts](../src/livemap/isle-food-spawns.ts). Cùng component `LiveMapTab` này được dùng lại nguyên vẹn ở cả tab "Live Map" (cửa sổ Menu) và panel bản đồ full màn hình [src/FullMapOverlay.tsx](../src/FullMapOverlay.tsx) (cửa sổ overlay, mở bằng phím `mapKey` — xem mục 2).
 - Bộ lọc hiển thị dùng chung state `mapTracking` (sanctuaries/migration/patrol/places/friends) lưu trong settings, chia sẻ giữa Radar/Compass/LiveMap — xem [src/map-tracking.ts](../src/map-tracking.ts).
 - Vị trí/hướng người chơi và bạn bè đến từ WebSocket live (mục 8), không phải poll HTTP.
 
@@ -97,7 +101,7 @@ Mọi tính năng bên dưới đều đi qua object `isleOverlay` này theo 3 d
    - `overlay:troll` / `overlay:troll-audio` — sự kiện media/âm thanh do server/admin kích hoạt (xem mục 9).
    - `overlay:ticket` — cập nhật ticket hỗ trợ (xem mục 10).
 4. Renderer nhận qua `onLive(cb)`, lưu vào state `live`; hàm `mergeLive()` ([src/App.tsx:971-989](../src/App.tsx)) merge frame `live` (chỉ số tức thời) vào snapshot REST `me` (lấy một lần từ `/api/overlay/me` khi mở app) để ra object thống nhất `view` — đây là nguồn dữ liệu chung cho HUD số liệu, Prime checklist, Compass, Radar.
-5. Các widget hiển thị (`StatsWidget`, `HeartHud` — export từ [src/MainWindow.tsx](../src/MainWindow.tsx), dùng lại trong `App.tsx` làm widget kéo-thả độc lập) chỉ đọc `view`, không tự gọi API/WS.
+5. Các widget hiển thị (`StatsWidget` — [src/StatsWidget.tsx](../src/StatsWidget.tsx), `HeartHud` — [src/HeartHud.tsx](../src/HeartHud.tsx), dùng lại trong `App.tsx` làm widget kéo-thả độc lập trên overlay) chỉ đọc `view`, không tự gọi API/WS.
 
 ## 9. Sự kiện media/troll do server điều khiển
 
@@ -112,7 +116,7 @@ Mọi tính năng bên dưới đều đi qua object `isleOverlay` này theo 3 d
 
 **Luồng kỹ thuật:**
 - [src/TicketsTab.tsx](../src/TicketsTab.tsx) — danh sách/nội dung ticket qua `apiGet/apiPost`; cập nhật real-time (ticket mới, đổi trạng thái) qua kênh `overlay:ticket` (`onTicket(cb)`), cùng nguồn dữ liệu WS ở mục 8.
-- `ticketSummary` (đếm chưa đọc/khẩn cấp) được `App()` giữ ở state riêng để hiện badge kể cả khi dashboard đang đóng.
+- `ticketSummary` (đếm chưa đọc/khẩn cấp) được cửa sổ Menu (`src/MenuWindow.tsx`) tự fetch qua IPC riêng để hiện badge. Overlay chính không còn polling dữ liệu này — icon lá thư mở nhanh menu và polling `ticketSummary` phía overlay đã bị bỏ cùng lúc tách Menu window ra (mục 2).
 
 ## 11. Admin & Map Editor
 
@@ -125,7 +129,7 @@ Mọi tính năng bên dưới đều đi qua object `isleOverlay` này theo 3 d
 
 ## 12. Cấu hình & cài đặt người dùng
 
-**Người dùng thấy gì:** đổi ngôn ngữ (Anh/Việt — mặc định theo `build.config.json` cho tới khi người dùng tự chọn, sau đó nhớ lựa chọn), kiểu hiển thị chỉ số (thanh/vòng tròn), độ trong suốt HUD, màu accent/màu từng chỉ số, streamer mode (ẩn thông tin nhạy cảm khi stream), compatibility mode, phím tắt dashboard/cursor, hình dạng/kích thước/phạm vi radar.
+**Người dùng thấy gì:** đổi ngôn ngữ (Anh/Việt — mặc định theo `build.config.json` cho tới khi người dùng tự chọn, sau đó nhớ lựa chọn), kiểu hiển thị chỉ số (thanh/vòng tròn), độ trong suốt HUD, màu accent/màu từng chỉ số, streamer mode (ẩn thông tin nhạy cảm khi stream), compatibility mode, phím tắt bản đồ (mặc định `M`)/cursor, hình dạng/kích thước/phạm vi radar, và bật/tắt "Chỉnh vị trí HUD" để tạm thời kéo/resize widget overlay. Tất cả các thiết lập này đều nằm trong Settings của cửa sổ Menu (không còn ở dashboard mở đè trên overlay).
 
 **Luồng kỹ thuật:**
 - Toàn bộ nằm trong một object `OverlaySettings`, đọc/ghi qua `getSettings()/setSettings()` (kênh `overlay:getSettings`/`overlay:setSettings`); main ghi xuống file settings JSON trên đĩa rồi phát lại `settings:changed` để mọi cửa sổ (overlay chính + radar) đồng bộ ngay.

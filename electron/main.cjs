@@ -5,7 +5,7 @@ const fs = require("fs");
 const { Worker } = require("worker_threads");
 const {
   DEFAULT_SERVER_NAME,
-  dashAccelerator,
+  mapAccelerator,
   isGameExecutable,
   isGameWindowCandidate,
   normalizeOverlayLabel,
@@ -34,8 +34,7 @@ try {
 }
 let cursorOn = false;
 let cursorKeyHeld = false;
-let dashKeyHeld = false;
-let dashOn = false;
+let mapKeyHeld = false;
 let recordTarget = "cursorKey";
 let uioStarted = false;
 let recordResolve = null;
@@ -148,6 +147,7 @@ const defaultSettings = {
       : null,
   theme: defaultTheme,
   radarBounds: null,
+  menuBounds: null,
   radarSize:
     typeof configuredUserDefaults.radarSize === "number" && Number.isFinite(configuredUserDefaults.radarSize)
       ? Math.max(180, Math.min(560, Math.round(configuredUserDefaults.radarSize)))
@@ -168,10 +168,10 @@ const defaultSettings = {
       ? configuredUserDefaults.cursorKey
       : "Insert",
   cursorMode: configuredUserDefaults.cursorMode === "hold" ? "hold" : "toggle",
-  dashKey:
-    typeof configuredUserDefaults.dashKey === "string" && configuredUserDefaults.dashKey
-      ? configuredUserDefaults.dashKey
-      : buildString("dashKey", "F8"),
+  mapKey:
+    typeof configuredUserDefaults.mapKey === "string" && configuredUserDefaults.mapKey
+      ? configuredUserDefaults.mapKey
+      : "M",
   streamerMode: configuredUserDefaults.streamerMode === true,
   compatMode: configuredUserDefaults.compatMode === true,
 };
@@ -232,6 +232,7 @@ const normalizeSettings = (raw) => {
       s.panels && typeof s.panels === "object" ? s.panels : defaultSettings.panels,
     theme: normalizeTheme(s.theme),
     radarBounds: s.radarBounds && typeof s.radarBounds === "object" ? s.radarBounds : null,
+    menuBounds: s.menuBounds && typeof s.menuBounds === "object" ? s.menuBounds : null,
     radarSize:
       typeof s.radarSize === "number" && Number.isFinite(s.radarSize)
         ? Math.max(180, Math.min(560, Math.round(s.radarSize)))
@@ -251,7 +252,7 @@ const normalizeSettings = (raw) => {
       typeof s.cursorKey === "string" && s.cursorKey ? s.cursorKey : defaultSettings.cursorKey,
     cursorMode:
       s.cursorMode === "hold" || s.cursorMode === "toggle" ? s.cursorMode : defaultSettings.cursorMode,
-    dashKey: typeof s.dashKey === "string" ? s.dashKey : defaultSettings.dashKey,
+    mapKey: typeof s.mapKey === "string" ? s.mapKey : defaultSettings.mapKey,
     streamerMode:
       typeof s.streamerMode === "boolean" ? s.streamerMode : defaultSettings.streamerMode,
     compatMode:
@@ -534,6 +535,10 @@ function radarSend(channel, data) {
   if (radarWindow && !radarWindow.isDestroyed()) radarWindow.webContents.send(channel, data);
 }
 
+function menuSend(channel, data) {
+  if (menuWindow && !menuWindow.isDestroyed()) menuWindow.webContents.send(channel, data);
+}
+
 function setCursor(on) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   cursorOn = on;
@@ -557,15 +562,88 @@ function setCursor(on) {
   mainWindow.webContents.send("overlay:cursor", on);
 }
 
-function toggleDash() {
-  dashOn = !dashOn;
-  setCursor(dashOn);
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("overlay:dash", dashOn);
+let hudEditMode = false;
+let fullMapOpen = false;
+
+function applyOverlayInteractive() {
+  setCursor(hudEditMode || fullMapOpen);
+}
+
+let menuWindow = null;
+
+function createMenuWindow() {
+  if (menuWindow && !menuWindow.isDestroyed()) return;
+  const s = readSettings();
+  const b = s.menuBounds || null;
+  const defaultWidth = 1100;
+  const defaultHeight = 720;
+  const primary = screen.getPrimaryDisplay();
+  menuWindow = new BrowserWindow({
+    x: b?.x ?? Math.round(primary.bounds.x + (primary.bounds.width - defaultWidth) / 2),
+    y: b?.y ?? Math.round(primary.bounds.y + (primary.bounds.height - defaultHeight) / 2),
+    width: b?.width ?? defaultWidth,
+    height: b?.height ?? defaultHeight,
+    minWidth: 900,
+    minHeight: 560,
+    title: `${s.serverName} ${s.overlayLabel}`.trim(),
+    icon: path.join(__dirname, "tray.ico"),
+    frame: false,
+    transparent: false,
+    resizable: true,
+    movable: true,
+    minimizable: true,
+    maximizable: true,
+    skipTaskbar: false,
+    hasShadow: true,
+    show: false,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      devTools: false,
+      backgroundThrottling: true,
+      preload: path.join(__dirname, "preload.cjs"),
+    },
+  });
+  menuWindow.setMenuBarVisibility(false);
+
+  const distIndex = path.join(__dirname, "..", "dist", "index.html");
+  const devUrl = process.env.VITE_DEV_SERVER_URL;
+  if (!app.isPackaged && devUrl) void menuWindow.loadURL(`${devUrl}#menu`);
+  else void menuWindow.loadFile(distIndex, { hash: "menu" });
+
+  const saveMenuBounds = () => {
+    if (menuWindow && !menuWindow.isDestroyed()) writeSettings({ menuBounds: menuWindow.getBounds() });
+  };
+  menuWindow.on("resize", saveMenuBounds);
+  menuWindow.on("move", saveMenuBounds);
+  menuWindow.on("closed", () => {
+    menuWindow = null;
+  });
+}
+
+function openMenu() {
+  createMenuWindow();
+  if (menuWindow && !menuWindow.isDestroyed()) {
+    menuWindow.show();
+    menuWindow.focus();
+  }
+}
+
+function closeMenu() {
+  if (menuWindow && !menuWindow.isDestroyed()) menuWindow.hide();
+}
+
+function toggleMenu() {
+  if (menuWindow && !menuWindow.isDestroyed() && menuWindow.isVisible() && menuWindow.isFocused()) {
+    closeMenu();
+  } else {
+    openMenu();
+  }
 }
 
 let tray = null;
-let dashShortcutAccelerator = null;
-let dashShortcutRegistered = false;
+let mapShortcutAccelerator = null;
+let mapShortcutRegistered = false;
 
 function refreshBranding(settings = readSettings()) {
   const title = `${settings.serverName} ${settings.overlayLabel}`.trim();
@@ -574,36 +652,42 @@ function refreshBranding(settings = readSettings()) {
   tray.setToolTip(title);
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: "Show / hide dashboard", click: () => toggleDash() },
+      { label: "Show / hide menu", click: () => toggleMenu() },
       { type: "separator" },
       { label: `Quit ${title}`, click: () => app.quit() },
     ]),
   );
 }
 
-function registerDashShortcut() {
+function toggleFullMap() {
+  fullMapOpen = !fullMapOpen;
+  applyOverlayInteractive();
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("fullMap:changed", fullMapOpen);
+}
+
+function registerMapShortcut() {
   if (!app.isReady()) return false;
-  if (dashShortcutAccelerator) globalShortcut.unregister(dashShortcutAccelerator);
-  dashShortcutAccelerator = null;
-  dashShortcutRegistered = false;
-  const accelerator = dashAccelerator(readSettings().dashKey);
+  if (mapShortcutAccelerator) globalShortcut.unregister(mapShortcutAccelerator);
+  mapShortcutAccelerator = null;
+  mapShortcutRegistered = false;
+  const accelerator = mapAccelerator(readSettings().mapKey);
   if (!accelerator) return false;
   try {
-    dashShortcutRegistered = globalShortcut.register(accelerator, () => {
-      if (!licenseBlocked) toggleDash();
+    mapShortcutRegistered = globalShortcut.register(accelerator, () => {
+      if (!licenseBlocked) toggleFullMap();
     });
-    if (dashShortcutRegistered) dashShortcutAccelerator = accelerator;
+    if (mapShortcutRegistered) mapShortcutAccelerator = accelerator;
   } catch {
-    dashShortcutRegistered = false;
+    mapShortcutRegistered = false;
   }
-  return dashShortcutRegistered;
+  return mapShortcutRegistered;
 }
 
 function createTray() {
   try {
     tray = new Tray(path.join(__dirname, "tray.ico"));
     refreshBranding();
-    tray.on("double-click", () => toggleDash());
+    tray.on("double-click", () => toggleMenu());
   } catch {
     tray = null;
   }
@@ -638,18 +722,18 @@ function startCursorHook() {
     if (recordResolve) {
       const name = keyNameForCode(e.keycode);
       writeSettings({ [recordTarget]: name });
-      if (recordTarget === "dashKey") registerDashShortcut();
+      if (recordTarget === "mapKey") registerMapShortcut();
       const r = recordResolve;
       recordResolve = null;
       r(name);
       return;
     }
     if (licenseBlocked) return;
-    const dashCode = dashShortcutRegistered ? null : cursorCodeFrom(readSettings().dashKey);
-    if (dashCode != null && e.keycode === dashCode) {
-      if (!dashKeyHeld) {
-        dashKeyHeld = true;
-        toggleDash();
+    const mapCode = mapShortcutRegistered ? null : cursorCodeFrom(readSettings().mapKey);
+    if (mapCode != null && e.keycode === mapCode) {
+      if (!mapKeyHeld) {
+        mapKeyHeld = true;
+        toggleFullMap();
       }
       return;
     }
@@ -662,8 +746,8 @@ function startCursorHook() {
     else setCursor(!cursorOn);
   });
   uio.uIOhook.on("keyup", (e) => {
-    const dashCode = cursorCodeFrom(readSettings().dashKey);
-    if (dashCode != null && e.keycode === dashCode) dashKeyHeld = false;
+    const mapCode = cursorCodeFrom(readSettings().mapKey);
+    if (mapCode != null && e.keycode === mapCode) mapKeyHeld = false;
     const code = currentCursorCode();
     if (code != null && e.keycode === code) {
       cursorKeyHeld = false;
@@ -739,7 +823,8 @@ function trackGame() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   const n = loadNw();
   if (!n) {
-    if (!dashOn) toggleDash();
+    overlayFocusActive = true;
+    if (!mainWindow.isVisible()) mainWindow.showInactive();
     return;
   }
 
@@ -764,7 +849,7 @@ function trackGame() {
   // foreground HWND. Fullscreen/remote-session wrappers can own foreground
   // briefly even while the game remains visible, which previously hid the HUD.
   const shouldShow =
-    dashOn || gameHwnd != null || activeIsOverlay || streamerModeActive || Date.now() < bootGraceUntil;
+    gameHwnd != null || activeIsOverlay || streamerModeActive || Date.now() < bootGraceUntil;
   overlayFocusActive = shouldShow;
 
   if (shouldShow) {
@@ -838,11 +923,12 @@ let liveWorker = null;
 function dispatchLiveFrame(frame) {
   if (frame && frame.t === "live" && frame.d) {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("overlay:live", frame.d);
+    menuSend("overlay:live", frame.d);
     radarSend("overlay:live", frame.d);
   } else if (frame && frame.t === "troll") {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("overlay:troll", frame);
   } else if (frame && frame.type === "ticket") {
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("overlay:ticket", frame);
+    menuSend("overlay:ticket", frame);
   }
 }
 
@@ -1058,7 +1144,8 @@ ipcMain.handle("overlay:setSettings", (_e, next) => {
     mainWindow.webContents.send("settings:changed", merged);
   }
   radarSend("settings:changed", merged);
-  if (typeof next?.dashKey === "string" && merged.dashKey !== prev.dashKey) registerDashShortcut();
+  menuSend("settings:changed", merged);
+  if (typeof next?.mapKey === "string" && merged.mapKey !== prev.mapKey) registerMapShortcut();
   return merged;
 });
 ipcMain.handle("overlay:getState", () => lastOverlayState);
@@ -1100,6 +1187,28 @@ ipcMain.handle("radar:setBounds", (_e, b) => {
   }
 });
 
+ipcMain.handle("menu:toggle", () => toggleMenu());
+ipcMain.handle("menu:open", () => openMenu());
+ipcMain.handle("menu:close", () => closeMenu());
+ipcMain.handle("menu:minimize", () => {
+  if (menuWindow && !menuWindow.isDestroyed()) menuWindow.minimize();
+});
+ipcMain.handle("menu:maximize", () => {
+  if (menuWindow && !menuWindow.isDestroyed()) {
+    if (menuWindow.isMaximized()) menuWindow.unmaximize();
+    else menuWindow.maximize();
+  }
+});
+
+ipcMain.handle("hudEdit:set", (_e, on) => {
+  hudEditMode = !!on;
+  applyOverlayInteractive();
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("hudEdit:changed", hudEditMode);
+  if (menuWindow && !menuWindow.isDestroyed()) menuWindow.webContents.send("hudEdit:changed", hudEditMode);
+});
+
+ipcMain.handle("fullMap:toggle", () => toggleFullMap());
+
 ipcMain.handle("skin:send", (_e, state) => {
   if (liveWs && liveWs.readyState === WebSocket.OPEN && state && typeof state === "object") {
     try {
@@ -1125,12 +1234,7 @@ function recordKey(target) {
 }
 
 ipcMain.handle("cursor:recordKey", () => recordKey("cursorKey"));
-ipcMain.handle("dash:recordKey", () => recordKey("dashKey"));
-
-ipcMain.handle("overlay:dashOpen", (_e, open) => {
-  dashOn = !!open;
-  setCursor(!!open);
-});
+ipcMain.handle("map:recordKey", () => recordKey("mapKey"));
 
 ipcMain.handle("auth:steamLogin", () => {
   void shell.openExternal(`${baseApi()}/api/overlay/auth/steam`);
@@ -1144,6 +1248,7 @@ ipcMain.handle("auth:logout", () => {
   writeSettings({ steamId: null, overlayToken: null });
   stopLive();
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("auth:changed", { steamId: null });
+  menuSend("auth:changed", { steamId: null });
 });
 
 ipcMain.handle("api:get", (_e, pathname) => apiFetch("GET", String(pathname)));
@@ -1237,6 +1342,8 @@ function handleDeepLink(rawUrl) {
     mainWindow.webContents.send("auth:changed", { steamId: saved.steamId });
     if (!mainWindow.isVisible()) mainWindow.showInactive();
   }
+  menuSend("auth:changed", { steamId: saved.steamId });
+  openMenu();
 }
 
 let licenseBlocked = false;
@@ -1246,8 +1353,11 @@ function applyLicense() {
     mainWindow.webContents.send("overlay:blocked", licenseBlocked);
     if (licenseBlocked && !mainWindow.isVisible()) mainWindow.showInactive();
   }
+  menuSend("overlay:blocked", licenseBlocked);
   if (licenseBlocked) {
     try { closeRadar(); } catch {}
+    hudEditMode = false;
+    fullMapOpen = false;
     try { setCursor(false); } catch {}
   }
 }
@@ -1278,7 +1388,9 @@ if (!gotLock) {
     await migrateSettingsIfNeeded();
     createWindow();
     createTray();
-    registerDashShortcut();
+    createMenuWindow();
+    openMenu();
+    registerMapShortcut();
     const boot = readSettings();
     mainWindow.setOpacity(boot.opacity);
     connectLive();

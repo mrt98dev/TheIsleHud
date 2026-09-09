@@ -6,8 +6,11 @@ Customizable Windows in-game HUD for **The Isle**, based on
 [reversum/isle-overlay](https://github.com/reversum/isle-overlay).
 
 Vietnamese-first HUD with a persistent in-game overlay, movable widgets,
-minimap, live player data, and a smooth location/friend compass. Press `F8` to
-open or close the dashboard; the HUD remains visible while you play.
+minimap, live player data, and a smooth location/friend compass. The
+dashboard/menu (tabs and Settings) runs in its own normal Windows window that
+opens automatically when the app starts; after that, show or hide it from the
+taskbar or the tray icon. The in-game overlay itself has no hotkey to open
+it, and stays visible while you play.
 
 > [!IMPORTANT]
 > This project is a derivative work built on
@@ -24,8 +27,9 @@ open or close the dashboard; the HUD remains visible while you play.
 ### Full in-game HUD layout
 
 The minimap, Prime checklist, compass, circular stats, and other HUD widgets stay
-visible during gameplay. Open the dashboard with `F8` to drag each widget or
-freely change its size and scale.
+visible during gameplay. Turn on "Chỉnh vị trí HUD" (Edit HUD position) in the
+menu window's Settings to drag each widget or freely change its size and
+scale.
 
 ![TheIsleHud full in-game HUD layout](docs/images/hud-prime-and-stats.png)
 
@@ -49,11 +53,17 @@ names visible with a `BẠN` marker and their current distance.
   not active.
 - Steam sign-in through a deep link; the bearer token stays in the Electron main
   process instead of being exposed to the React renderer.
-- `F8` opens or closes only the dashboard; enabled HUD widgets remain visible in
-  game.
+- Shows only the Compass, Stats, Prime checklist, Heart HUD, Radar/minimap, and
+  server-info widget; the dashboard/menu with tabs and Settings lives in its
+  own separate window (see below) and has no in-overlay button or hotkey.
+- A configurable hotkey (default `M`, changed from the menu window's Settings
+  under "Phím mở bản đồ") opens a large, near-full-screen map panel over the
+  game, reusing the same Live Map view that is also a tab in the menu window;
+  press the same key, `Esc`, or the on-screen close button to dismiss it.
 - Draggable and freely resizable widgets for stats, Prime progress,
-  heart/health, compass, and radar. Resize handles are shown only while the
-  dashboard is open.
+  heart/health, compass, and radar. Resize handles are shown only while
+  "Chỉnh vị trí HUD" (Edit HUD position) is switched on from the menu window's
+  Settings.
 - Vietnamese is the default language, with an English/Vietnamese language
   selector for players.
 - Developer-controlled server branding and backend endpoint, plus player HUD
@@ -61,6 +71,19 @@ names visible with a `BẠN` marker and their current distance.
   compatibility mode.
 - Optional server-edition widget for builds that provide a GameMonitoring
   server ID. Generic builds leave this integration disabled.
+
+### Menu window
+
+- A separate, resizable, movable Windows window with its own taskbar entry
+  (not always-on-top) hosts the dashboard tabs (Profile, Live Map, Skin
+  Editor, Garage, Dino Shop, Skin Shop, Support, Map Editor) and Settings.
+- Opens automatically when the app launches; from then on, show or hide it
+  from the taskbar or the tray icon's "Show / hide menu" entry — there is no
+  in-game hotkey for it.
+- Settings here also expose "Chỉnh vị trí HUD" (Edit HUD position) to
+  temporarily reposition/resize overlay widgets, and "Phím mở bản đồ" (map
+  hotkey) to change the key (default `M`) that opens the full-screen map
+  panel.
 
 ### Player dashboard and HUD
 
@@ -156,7 +179,7 @@ fresh installation:
 - `apiBaseUrl` selects the compatible backend.
 - `language` accepts `en` or `vi`.
 - `statsStyle` accepts `bars` or `circles`.
-- `dashKey`, `radarShape`, and `accentColor` set their initial values.
+- `mapKey`, `radarShape`, and `accentColor` set their initial values.
 - `gameMonitoringServerId` is `null` in the generic configuration, which hides
   the server-status widget and prevents GameMonitoring requests.
 - `defaultUserSettings` contains the sanitized default widget layout, scale,

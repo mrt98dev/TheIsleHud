@@ -16,7 +16,7 @@ function normalizeRadarShape(value) {
   return value === "square" ? "square" : "circle";
 }
 
-function dashAccelerator(value) {
+function mapAccelerator(value) {
   if (typeof value !== "string") return null;
   if (/^F(?:[1-9]|1\d|2[0-4])$/.test(value)) return value;
   const named = {
@@ -51,7 +51,7 @@ function isGameWindowCandidate(title, imagePath) {
 
 module.exports = {
   DEFAULT_SERVER_NAME,
-  dashAccelerator,
+  mapAccelerator,
   isGameExecutable,
   isGameWindowCandidate,
   normalizeOverlayLabel,

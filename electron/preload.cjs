@@ -54,13 +54,6 @@ contextBridge.exposeInMainWorld("isleOverlay", {
 
   sendLiveSkin: (state) => ipcRenderer.invoke("skin:send", state),
   recordCursorKey: () => ipcRenderer.invoke("cursor:recordKey"),
-  recordDashKey: () => ipcRenderer.invoke("dash:recordKey"),
-  setDashOpen: (open) => ipcRenderer.invoke("overlay:dashOpen", open),
-  onDash: (cb) => {
-    const h = (_e, on) => cb(on);
-    ipcRenderer.on("overlay:dash", h);
-    return () => ipcRenderer.removeListener("overlay:dash", h);
-  },
   onCursor: (cb) => {
     const h = (_e, on) => cb(on);
     ipcRenderer.on("overlay:cursor", h);
@@ -87,6 +80,35 @@ contextBridge.exposeInMainWorld("isleOverlay", {
     const h = (_e, d) => cb(d);
     ipcRenderer.on("radar:changed", h);
     return () => ipcRenderer.removeListener("radar:changed", h);
+  },
+
+  menu: {
+    toggle: () => ipcRenderer.invoke("menu:toggle"),
+    open: () => ipcRenderer.invoke("menu:open"),
+    close: () => ipcRenderer.invoke("menu:close"),
+    minimize: () => ipcRenderer.invoke("menu:minimize"),
+    maximize: () => ipcRenderer.invoke("menu:maximize"),
+  },
+
+  hudEdit: {
+    set: (on) => ipcRenderer.invoke("hudEdit:set", on),
+  },
+  onHudEdit: (cb) => {
+    const listener = (_e, on) => cb(on);
+    ipcRenderer.on("hudEdit:changed", listener);
+    return () => ipcRenderer.removeListener("hudEdit:changed", listener);
+  },
+
+  map: {
+    recordKey: () => ipcRenderer.invoke("map:recordKey"),
+  },
+  fullMap: {
+    toggle: () => ipcRenderer.invoke("fullMap:toggle"),
+  },
+  onFullMap: (cb) => {
+    const listener = (_e, open) => cb(open);
+    ipcRenderer.on("fullMap:changed", listener);
+    return () => ipcRenderer.removeListener("fullMap:changed", listener);
   },
 
   updaterRestart: () => ipcRenderer.invoke("updater:restart"),

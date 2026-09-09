@@ -7,7 +7,6 @@
   "updateChannel": "latest",
   "language": "vi",
   "statsStyle": "circles",
-  "dashKey": "F8",
   "radarShape": "square",
   "accentColor": "#7cf2a6",
   "defaultUserSettings": {
@@ -55,7 +54,7 @@
     "cursorEnabled": false,
     "cursorKey": "Insert",
     "cursorMode": "toggle",
-    "dashKey": "F8",
+    "mapKey": "M",
     "streamerMode": false,
     "compatMode": true
   }

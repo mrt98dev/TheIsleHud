@@ -27,6 +27,7 @@ export type OverlaySettings = {
   panels: Record<string, boolean> | null;
   theme: OverlayTheme;
   radarBounds: { x: number; y: number; width: number; height: number } | null;
+  menuBounds: { x: number; y: number; width: number; height: number } | null;
   radarSize: number;
   radarRange: number;
   radarLabels: boolean;
@@ -36,7 +37,7 @@ export type OverlaySettings = {
   cursorEnabled: boolean;
   cursorKey: string;
   cursorMode: "toggle" | "hold";
-  dashKey: string;
+  mapKey: string;
   streamerMode: boolean;
   compatMode: boolean;
 };
@@ -193,9 +194,6 @@ export type IsleOverlayBridge = {
   onTrollAudio: (cb: (chunk: Uint8Array) => void) => () => void;
   sendLiveSkin: (state: Record<string, number | string>) => Promise<void>;
   recordCursorKey: () => Promise<string | null>;
-  recordDashKey: () => Promise<string | null>;
-  setDashOpen: (open: boolean) => Promise<void>;
-  onDash: (cb: (on: boolean) => void) => () => void;
   onCursor: (cb: (on: boolean) => void) => () => void;
   onBlocked: (cb: (blocked: boolean) => void) => () => void;
   onSettingsChanged: (cb: (s: OverlaySettings) => void) => () => void;
@@ -205,6 +203,24 @@ export type IsleOverlayBridge = {
   radarGetBounds: () => Promise<{ x: number; y: number; width: number; height: number } | null>;
   radarSetBounds: (b: { x: number; y: number; width: number; height: number }) => Promise<void>;
   onRadarChanged: (cb: (d: { open: boolean }) => void) => () => void;
+  menu: {
+    toggle: () => Promise<void>;
+    open: () => Promise<void>;
+    close: () => Promise<void>;
+    minimize: () => Promise<void>;
+    maximize: () => Promise<void>;
+  };
+  hudEdit: {
+    set: (on: boolean) => Promise<void>;
+  };
+  onHudEdit: (cb: (on: boolean) => void) => () => void;
+  map: {
+    recordKey: () => Promise<string | null>;
+  };
+  fullMap: {
+    toggle: () => Promise<void>;
+  };
+  onFullMap: (cb: (open: boolean) => void) => () => void;
   updaterRestart: () => Promise<boolean>;
   updaterCheck: () => Promise<boolean>;
   updaterGetState: () => Promise<UpdaterState>;

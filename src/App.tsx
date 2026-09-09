@@ -1,17 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isInteractLocked, lockInteract, unlockInteract } from "./interaction";
-import { HeartHud, MainWindow, StatsWidget } from "./MainWindow";
+import { FullMapOverlay } from "./FullMapOverlay";
+import { HeartHud } from "./HeartHud";
+import { StatsWidget } from "./StatsWidget";
 import { RadarPanel } from "./RadarPanel";
 import { TrollLayer } from "./TrollLayer";
-import { ColorSwatch } from "./ColorPicker";
 import { CompassWidget } from "./CompassWidget";
 import { clampToViewport } from "./drag";
 import { tr, translatePrimeQuest, type AppLanguage } from "./i18n";
-import {
-  DEFAULT_MAP_TRACKING,
-  type MapTrackingKey,
-  type MapTrackingSettings,
-} from "./map-tracking";
+import { DEFAULT_MAP_TRACKING } from "./map-tracking";
 import type {
   AuthInfo,
   LiveFrame,
@@ -27,48 +24,11 @@ const DEFAULT_THEME: OverlayTheme = {
   stat: { health: "#ff5a5a", stamina: "#35d6a4", food: "#ffb454", water: "#5ab6ff" },
 };
 
-const VN_HUD_THEME: OverlayTheme = {
-  accent: "#ff7a3c",
-  stat: { health: "#ff5148", stamina: "#ffb638", food: "#8bd44f", water: "#49b6ff" },
-};
-
 function applyTheme(t: OverlayTheme) {
   const r = document.documentElement.style;
   r.setProperty("--phos", t.accent);
   r.setProperty("--edge", t.accent + "2e");
   r.setProperty("--phos-dim", t.accent + "77");
-}
-
-function BootScreen({ onDone, serverName, overlayLabel }: { onDone: () => void; serverName: string; overlayLabel: string }) {
-  const [leaving, setLeaving] = useState(false);
-  const doneRef = useRef(onDone);
-  doneRef.current = onDone;
-  useEffect(() => {
-    const t1 = window.setTimeout(() => setLeaving(true), 1000);
-    const t2 = window.setTimeout(() => doneRef.current(), 1400);
-    return () => {
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-    };
-  }, []);
-  return (
-    <div className={`boot ${leaving ? "leaving" : ""}`}>
-      <div className="bootMark" role="status" aria-live="polite" aria-label={`${serverName} đang khởi động`}>
-        <img className="bootBackdropLogo" src="./icon.png" alt="" aria-hidden="true" />
-        <div className="bootContent">
-          <div className="bootEyebrow">THE ISLE VIETNAM HUD</div>
-          <div className="bootLogo">
-            {serverName}
-          </div>
-          <div className="bootSub">{overlayLabel ? `${overlayLabel.toUpperCase()} · ` : ""}v{__APP_VERSION__}</div>
-          <div className="bootBar" aria-hidden="true">
-            <div className="bootBarFill" />
-          </div>
-          <div className="bootCredit">Coded by RayJacobs</div>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 let cursorLatched = false;
@@ -417,478 +377,6 @@ function ServerInfoWidget({
   );
 }
 
-const PANELS: { key: string; label: string; soon?: boolean }[] = [
-  { key: "server", label: "Server info" },
-  { key: "compass", label: "Compass" },
-  { key: "stats", label: "Stats" },
-  { key: "prime", label: "PRIME" },
-  { key: "heart", label: "HP Heart" },
-  { key: "radar", label: "Radar" },
-];
-
-const TRACKING_OPTIONS: Array<{ key: MapTrackingKey; label: string; color: string }> = [
-  { key: "sanctuaries", label: "Sanctuaries", color: "#79f2a6" },
-  { key: "migration", label: "Migration zones", color: "#ffce54" },
-  { key: "patrol", label: "Patrol zones", color: "#5ab6ff" },
-  { key: "places", label: "Other places", color: "#b79cff" },
-  { key: "friends", label: "Friends", color: "#7cf2a6" },
-];
-
-function ColorRow({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  return (
-    <div className="colorRow">
-      <span>{label}</span>
-      <ColorSwatch value={value} onChange={onChange} size={22} />
-      <code>{value}</code>
-    </div>
-  );
-}
-
-function SettingsPanel({
-  settings,
-  theme,
-  panels,
-  opacity,
-  authed,
-  onTheme,
-  onOpacity,
-  onTogglePanel,
-  onLogout,
-  onQuit,
-  onClose,
-}: {
-  settings: OverlaySettings | null;
-  theme: OverlayTheme;
-  panels: Record<string, boolean>;
-  opacity: number;
-  authed: boolean;
-  onTheme: (t: OverlayTheme) => void;
-  onOpacity: (v: number) => void;
-  onTogglePanel: (k: string) => void;
-  onLogout: () => void;
-  onQuit: () => void;
-  onClose: () => void;
-}) {
-  const setStat = (k: keyof OverlayTheme["stat"], v: string) =>
-    onTheme({ ...theme, stat: { ...theme.stat, [k]: v } });
-  const radarOpen = Boolean(panels.radar);
-  const toggleRadar = () => onTogglePanel("radar");
-  const [radarSize, setRadarSize] = useState(settings?.radarSize ?? 320);
-  const [radarRange, setRadarRange] = useState(settings?.radarRange ?? 1);
-  const [radarLabels, setRadarLabels] = useState(settings?.radarLabels ?? false);
-  const [mapTracking, setMapTracking] = useState<MapTrackingSettings>(
-    settings?.mapTracking ?? DEFAULT_MAP_TRACKING,
-  );
-  const [radarShape, setRadarShape] = useState<"circle" | "square">(settings?.radarShape ?? "circle");
-  const RANGE_LABELS = ["CLOSE", "MID", "FAR", "MAX"];
-  const [cursorEnabled, setCursorEnabled] = useState(settings?.cursorEnabled ?? false);
-  const [cursorKey, setCursorKey] = useState(settings?.cursorKey ?? "Insert");
-  const [cursorMode, setCursorMode] = useState(settings?.cursorMode ?? "toggle");
-  const [recording, setRecording] = useState(false);
-  const [dashKey, setDashKey] = useState(settings?.dashKey ?? "F8");
-  const [recordingDash, setRecordingDash] = useState(false);
-  const CURSOR_KEYS = ["Insert", "Home", "End", "PageUp", "PageDown", "Delete", "CapsLock", "Backquote", "F6", "F7", "F8", "F9", "F10"];
-  async function recordCursorKey() {
-    setRecording(true);
-    const k = await window.isleOverlay.recordCursorKey();
-    setRecording(false);
-    if (k) setCursorKey(k);
-  }
-  async function recordDashKey() {
-    setRecordingDash(true);
-    const k = await window.isleOverlay.recordDashKey();
-    setRecordingDash(false);
-    if (k) setDashKey(k);
-  }
-  const SETTINGS_CATS = [
-    { key: "widgets", label: "Widgets" },
-    { key: "radar", label: "Radar" },
-    { key: "controls", label: "Controls" },
-    { key: "streaming", label: "Streaming" },
-    { key: "appearance", label: "Appearance" },
-    { key: "account", label: "Account" },
-  ];
-  const [cat, setCat] = useState("widgets");
-  const [streamerMode, setStreamerMode] = useState(settings?.streamerMode ?? false);
-  const [compatMode, setCompatMode] = useState(settings?.compatMode ?? false);
-  const [language, setLanguage] = useState<AppLanguage>(settings?.language ?? "en");
-  const [statsStyle, setStatsStyle] = useState<"bars" | "circles">(settings?.statsStyle ?? "bars");
-  const [hudTransparent, setHudTransparent] = useState(settings?.hudTransparent ?? false);
-  const t = (text: string) => tr(language, text);
-  useEffect(() => {
-    void window.isleOverlay.getSettings().then((s) => {
-      setStreamerMode(Boolean(s.streamerMode));
-      setCompatMode(Boolean(s.compatMode));
-      setLanguage(s.language);
-      setStatsStyle(s.statsStyle);
-      setHudTransparent(Boolean(s.hudTransparent));
-      setMapTracking(s.mapTracking ?? DEFAULT_MAP_TRACKING);
-    });
-  }, []);
-
-  return (
-    <div className="settingsBackdrop interactive-region" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="frame settingsFrame">
-        <div className="frameBar">
-          <span className="dot" />
-          <span className="ttl">{t("Settings").toUpperCase()}</span>
-          <button className="xbtn" onClick={onClose}>✕</button>
-        </div>
-        <div className="settingsLayout">
-          <div className="settingsRail">
-            {SETTINGS_CATS.map((c) => (
-              <button
-                key={c.key}
-                className={`settingsRailBtn ${cat === c.key ? "on" : ""}`}
-                onClick={() => setCat(c.key)}
-              >
-                {t(c.label)}
-              </button>
-            ))}
-          </div>
-          <div className="settingsContent">
-          {cat === "widgets" && (<>
-          <div className="secLabel">{t("Detached widgets")}</div>
-          <div className="hint">{t("Enable widgets, drag them anywhere, and resize them from the bottom-right corner.")}</div>
-          <div className="featRow">
-            {PANELS.filter((p) => p.key !== "server" || settings?.serverInfoEnabled).map((p) => (
-              <button
-                key={p.key}
-                className={`chip ${panels[p.key] ? "on" : ""}`}
-                onClick={() => onTogglePanel(p.key)}
-              >
-                {t(p.label).toUpperCase()}
-              </button>
-            ))}
-          </div>
-
-          </>)}
-          {cat === "radar" && (<>
-          <div className="secLabel">{t("Live radar")}</div>
-          <div className="hint">{t("A floating minimap that follows you in-game. Drag it to move it.")}</div>
-          <button className={`radarToggle ${radarOpen ? "on" : ""}`} onClick={toggleRadar}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <circle cx="12" cy="12" r="9" />
-              <path d="M12 3v18M3 12h18" strokeWidth="1" opacity="0.5" />
-              <circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none" />
-            </svg>
-            {t(radarOpen ? "Close radar" : "Open radar")}
-          </button>
-
-          <div className="hint" style={{ marginTop: 6 }}>{t("Size")} · {radarSize}px</div>
-          <input
-            className="range"
-            type="range"
-            min={180}
-            max={520}
-            step={10}
-            value={radarSize}
-            onChange={(e) => {
-              const v = Number(e.target.value);
-              setRadarSize(v);
-              void window.isleOverlay.setSettings({ radarSize: v });
-            }}
-          />
-
-          <div className="hint" style={{ marginTop: 6 }}>{t("Range")}</div>
-          <div className="featRow">
-            {RANGE_LABELS.map((lbl, i) => (
-              <button
-                key={lbl}
-                className={`chip ${radarRange === i ? "on" : ""}`}
-                onClick={() => {
-                  setRadarRange(i);
-                  void window.isleOverlay.setSettings({ radarRange: i });
-                }}
-              >
-                {lbl}
-              </button>
-            ))}
-          </div>
-
-          <div className="secLabel">{t("Stats layout")}</div>
-          <div className="featRow">
-            {(["bars", "circles"] as const).map((style) => (
-              <button
-                key={style}
-                className={`chip ${statsStyle === style ? "on" : ""}`}
-                aria-pressed={statsStyle === style}
-                onClick={() => {
-                  setStatsStyle(style);
-                  void window.isleOverlay.setSettings({ statsStyle: style });
-                }}
-              >
-                {t(style === "bars" ? "Bars" : "Circles").toUpperCase()}
-              </button>
-            ))}
-          </div>
-
-          <div className="secLabel">{t("HUD background")}</div>
-          <div className="hint">{t("Choose a solid panel or remove the background behind floating HUD widgets.")}</div>
-          <div className="featRow">
-            {([false, true] as const).map((transparent) => (
-              <button
-                key={String(transparent)}
-                className={`chip ${hudTransparent === transparent ? "on" : ""}`}
-                aria-pressed={hudTransparent === transparent}
-                onClick={() => {
-                  setHudTransparent(transparent);
-                  void window.isleOverlay.setSettings({ hudTransparent: transparent });
-                }}
-              >
-                {t(transparent ? "Transparent" : "Default").toUpperCase()}
-              </button>
-            ))}
-          </div>
-
-          <div className="hint" style={{ marginTop: 6 }}>{t("Shape")}</div>
-          <div className="featRow">
-            {(["circle", "square"] as const).map((shape) => (
-              <button
-                key={shape}
-                className={`chip ${radarShape === shape ? "on" : ""}`}
-                aria-pressed={radarShape === shape}
-                onClick={() => {
-                  setRadarShape(shape);
-                  void window.isleOverlay.setSettings({ radarShape: shape });
-                }}
-              >
-                {t(shape === "circle" ? "Circle" : "Square").toUpperCase()}
-              </button>
-            ))}
-          </div>
-
-          <div className="featRow" style={{ marginTop: 6 }}>
-            <button
-              className={`chip ${radarLabels ? "on" : ""}`}
-              onClick={() => {
-                const v = !radarLabels;
-                setRadarLabels(v);
-                void window.isleOverlay.setSettings({ radarLabels: v });
-              }}
-            >
-              {t("Labels").toUpperCase()}
-            </button>
-          </div>
-          <div className="hint" style={{ marginTop: 6 }}>{t("Shows names for places and markers on the minimap.")}</div>
-
-          <div className="secLabel">{t("Tracked map items")}</div>
-          <div className="hint">{t("These filters are shared by the radar and compass.")}</div>
-          <div className="trackingGrid">
-            <button
-              type="button"
-              className={`trackingChip ${Object.values(mapTracking).every(Boolean) ? "on" : ""}`}
-              aria-pressed={Object.values(mapTracking).every(Boolean)}
-              onClick={() => {
-                const enabled = !Object.values(mapTracking).every(Boolean);
-                const next = Object.fromEntries(
-                  TRACKING_OPTIONS.map((option) => [option.key, enabled]),
-                ) as MapTrackingSettings;
-                setMapTracking(next);
-                void window.isleOverlay.setSettings({ mapTracking: next });
-              }}
-            >
-              <span className="trackingCheck" aria-hidden="true" />
-              <span>{t("All items")}</span>
-            </button>
-            {TRACKING_OPTIONS.map((option) => (
-              <button
-                key={option.key}
-                type="button"
-                className={`trackingChip ${mapTracking[option.key] ? "on" : ""}`}
-                aria-pressed={mapTracking[option.key]}
-                style={{ ["--track-color" as string]: option.color }}
-                onClick={() => {
-                  const next = { ...mapTracking, [option.key]: !mapTracking[option.key] };
-                  setMapTracking(next);
-                  void window.isleOverlay.setSettings({ mapTracking: next });
-                }}
-              >
-                <span className="trackingCheck" aria-hidden="true" />
-                <span>{t(option.label)}</span>
-              </button>
-            ))}
-          </div>
-
-          </>)}
-          {cat === "controls" && (<>
-          <div className="secLabel">{t("Cursor")}</div>
-          <div className="hint">{t("Press the key to show a mouse cursor and click the overlay.")}</div>
-          <div className="featRow">
-            <button
-              className={`chip ${cursorEnabled ? "on" : ""}`}
-              onClick={() => {
-                const v = !cursorEnabled;
-                setCursorEnabled(v);
-                void window.isleOverlay.setSettings({ cursorEnabled: v });
-              }}
-            >
-              {cursorEnabled ? "ON" : "OFF"}
-            </button>
-            <button
-              className={`chip ${cursorMode === "toggle" ? "on" : ""}`}
-              onClick={() => {
-                setCursorMode("toggle");
-                void window.isleOverlay.setSettings({ cursorMode: "toggle" });
-              }}
-            >
-              {t("Toggle").toUpperCase()}
-            </button>
-            <button
-              className={`chip ${cursorMode === "hold" ? "on" : ""}`}
-              onClick={() => {
-                setCursorMode("hold");
-                void window.isleOverlay.setSettings({ cursorMode: "hold" });
-              }}
-            >
-              {t("Hold").toUpperCase()}
-            </button>
-          </div>
-          <div className="hint" style={{ marginTop: 6 }}>{t("Key")} · {cursorKey}</div>
-          <div className="featRow" style={{ flexWrap: "wrap" }}>
-            {CURSOR_KEYS.map((k) => (
-              <button
-                key={k}
-                className={`chip ${cursorKey === k ? "on" : ""}`}
-                onClick={() => {
-                  setCursorKey(k);
-                  void window.isleOverlay.setSettings({ cursorKey: k });
-                }}
-              >
-                {k}
-              </button>
-            ))}
-            <button className={`chip ${recording ? "on" : ""}`} onClick={recordCursorKey}>
-              {recording ? t("Press key…").toUpperCase() : `+ ${t("Custom").toUpperCase()}`}
-            </button>
-          </div>
-
-          <div className="secLabel">{t("Dashboard hotkey")}</div>
-          <div className="hint">{t("Global shortcut: show or hide the dashboard while the game has focus.")}</div>
-          <div className="hint" style={{ marginTop: 6 }}>{t("Key")} · {dashKey}</div>
-          <div className="featRow" style={{ flexWrap: "wrap" }}>
-            {CURSOR_KEYS.map((k) => (
-              <button
-                key={k}
-                className={`chip ${dashKey === k ? "on" : ""}`}
-                onClick={() => {
-                  setDashKey(k);
-                  void window.isleOverlay.setSettings({ dashKey: k });
-                }}
-              >
-                {k}
-              </button>
-            ))}
-            <button className={`chip ${recordingDash ? "on" : ""}`} onClick={recordDashKey}>
-              {recordingDash ? t("Press key…").toUpperCase() : `+ ${t("Custom").toUpperCase()}`}
-            </button>
-          </div>
-
-          </>)}
-          {cat === "streaming" && (<>
-          <div className="secLabel">{t("OBS / streamer mode")}</div>
-          <div className="hint">{t("Makes the overlay a normal capturable window for OBS Window Capture.")}</div>
-          <div className="featRow">
-            <button
-              className={`chip ${streamerMode ? "on" : ""}`}
-              onClick={() => {
-                const v = !streamerMode;
-                setStreamerMode(v);
-                void window.isleOverlay.setSettings({ streamerMode: v });
-              }}
-            >
-              {streamerMode ? "ON" : "OFF"}
-            </button>
-          </div>
-          <div className="hint" style={{ marginTop: 6 }}>
-            {t("Use Windows 10 (1903+) capture. If transparency fails, add a Chroma/Color Key or lower source opacity.")}
-          </div>
-
-          </>)}
-          {cat === "appearance" && (<>
-          <div className="secLabel">{t("Language")}</div>
-          <div className="featRow">
-            {(["en", "vi"] as const).map((nextLanguage) => (
-              <button
-                key={nextLanguage}
-                className={`chip ${language === nextLanguage ? "on" : ""}`}
-                aria-pressed={language === nextLanguage}
-                onClick={() => {
-                  setLanguage(nextLanguage);
-                  void window.isleOverlay.setSettings({ language: nextLanguage, languageExplicit: true });
-                }}
-              >
-                {tr(nextLanguage, nextLanguage === "en" ? "English" : "Vietnamese").toUpperCase()}
-              </button>
-            ))}
-          </div>
-
-          <div className="secLabel">{t("Theme")}</div>
-          <div className="presetRow">
-            <button className="tbtn ghost" onClick={() => onTheme(DEFAULT_THEME)}>{t("Default")}</button>
-            <button className="tbtn ghost" onClick={() => onTheme(VN_HUD_THEME)}>TheIsleHud</button>
-          </div>
-          <ColorRow label={t("Accent")} value={theme.accent} onChange={(v) => onTheme({ ...theme, accent: v })} />
-
-          <div className="secLabel">{t("Stat colors")}</div>
-          <ColorRow label={t("Health")} value={theme.stat.health} onChange={(v) => setStat("health", v)} />
-          <ColorRow label={t("Stamina")} value={theme.stat.stamina} onChange={(v) => setStat("stamina", v)} />
-          <ColorRow label={t("Hunger")} value={theme.stat.food} onChange={(v) => setStat("food", v)} />
-          <ColorRow label={t("Thirst")} value={theme.stat.water} onChange={(v) => setStat("water", v)} />
-
-          <div className="secLabel">{t("Opacity")}</div>
-          <input
-            className="range"
-            type="range"
-            min={0.4}
-            max={1}
-            step={0.05}
-            value={opacity}
-            onChange={(e) => onOpacity(Number(e.target.value))}
-          />
-
-          <div className="secLabel">{t("Compatibility mode")}</div>
-          <div className="hint">{t("Use this only when the overlay creates a black background because it has a small performance cost.")}</div>
-          <div className="featRow">
-            <button
-              className={`chip ${compatMode ? "on" : ""}`}
-              onClick={() => {
-                const v = !compatMode;
-                setCompatMode(v);
-                void window.isleOverlay.setSettings({ compatMode: v });
-              }}
-            >
-              {compatMode ? "ON" : "OFF"}
-            </button>
-          </div>
-          <div className="hint" style={{ marginTop: 6 }}>
-            {t("Restart the overlay for compatibility mode changes to take effect.")}
-          </div>
-
-          </>)}
-          {cat === "account" && (<>
-          <div className="secLabel">{t("Account")}</div>
-          <div className="menuFoot">
-            {authed ? (
-              <button className="tbtn ghost" onClick={onLogout}>
-                {t("Logout")}
-              </button>
-            ) : null}
-            <button className="tbtn ghost" onClick={onQuit}>
-              {t("Quit overlay")}
-            </button>
-          </div>
-          <div className="secLabel">{t("About")}</div>
-          <div className="hint">{[settings?.serverName ?? "TheIsleHud", settings?.overlayLabel].filter(Boolean).join(" ")} · v{__APP_VERSION__}</div>
-          <div className="hint">Coded by RayJacobs</div>
-          </>)}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function useMe(authed: boolean): PlayerMe | null {
   const [me, setMe] = useState<PlayerMe | null>(null);
   useEffect(() => {
@@ -989,18 +477,14 @@ function mergeLive(me: PlayerMe | null, live: LiveFrame | null): PlayerMe | null
 }
 
 export function App() {
-  const [booted, setBooted] = useState(false);
   const [auth, setAuth] = useState<AuthInfo>({ steamId: null, authed: false });
   const [state, setState] = useState<OverlayState>({ gameDetected: false, active: false });
   const [settings, setSettings] = useState<OverlaySettings | null>(null);
   const [panels, setPanels] = useState<Record<string, boolean>>({ heart: true, compass: true, server: true });
   const [theme, setThemeState] = useState<OverlayTheme>(DEFAULT_THEME);
-  const [opacity, setOpacityState] = useState(1);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [mainOpen, setMainOpen] = useState(false);
-  const [ticketSummary, setTicketSummary] = useState({ unread: 0, urgent: false });
-  const [focusSupportSignal, setFocusSupportSignal] = useState(0);
   const [blocked, setBlocked] = useState(false);
+  const [hudEditMode, setHudEditMode] = useState(false);
+  const [fullMapOpen, setFullMapOpen] = useState(false);
   const mounted = useRef(false);
   const language = settings?.language ?? "en";
   const t = (text: string) => tr(language, text);
@@ -1010,22 +494,19 @@ export function App() {
   }, [language]);
 
   useEffect(() => {
-    const off = window.isleOverlay.onDash((on) => setMainOpen(on));
-    return off;
-  }, []);
-
-  useEffect(() => {
-    if (!mainOpen) setSettingsOpen(false);
-  }, [mainOpen]);
-
-  useEffect(() => {
     const off = window.isleOverlay.onBlocked((b) => setBlocked(b));
     return off;
   }, []);
 
   useEffect(() => {
-    void window.isleOverlay.setDashOpen(mainOpen);
-  }, [mainOpen]);
+    const off = window.isleOverlay.onHudEdit(setHudEditMode);
+    return off;
+  }, []);
+
+  useEffect(() => {
+    const off = window.isleOverlay.onFullMap(setFullMapOpen);
+    return off;
+  }, []);
 
   useEffect(() => {
     const off = window.isleOverlay.onCursor((on) => {
@@ -1041,33 +522,6 @@ export function App() {
   const serverStatus = useServerStatus(
     auth.authed && panels.server !== false && settings?.serverInfoEnabled === true,
   );
-
-  useEffect(() => {
-    if (!auth.authed) {
-      setTicketSummary({ unread: 0, urgent: false });
-      return;
-    }
-    let alive = true;
-    const tick = async () => {
-      const r = (await window.isleOverlay.apiGet("/api/overlay/tickets/summary")) as {
-        error?: string;
-        unreadTickets?: number;
-        hasUrgent?: boolean;
-        staff?: { assignedUnread?: number };
-      };
-      if (!alive || r.error) return;
-      const unread = (r.unreadTickets ?? 0) + (r.staff?.assignedUnread ?? 0);
-      setTicketSummary({ unread, urgent: r.hasUrgent === true });
-    };
-    void tick();
-    const iv = setInterval(tick, 20000);
-    const off = window.isleOverlay.onTicket(() => void tick());
-    return () => {
-      alive = false;
-      clearInterval(iv);
-      off();
-    };
-  }, [auth.authed]);
   const view = useMemo(() => mergeLive(me, live), [me, live]);
   const dinoPresent = live ? live.hasDino : Boolean(me?.online && me?.species);
   const isDino = dinoPresent && !(typeof view?.health === "number" && view.health <= 0);
@@ -1082,7 +536,6 @@ export function App() {
         setThemeState(s.theme);
         applyTheme(s.theme);
       }
-      if (typeof s.opacity === "number") setOpacityState(s.opacity);
     });
     void window.isleOverlay.getAuth().then(setAuth);
     void window.isleOverlay.getState().then(setState);
@@ -1097,50 +550,8 @@ export function App() {
   }, []);
 
   const login = useCallback(() => void window.isleOverlay.steamLogin(), []);
-  const logout = useCallback(() => void window.isleOverlay.logout(), []);
-  const quit = useCallback(() => void window.isleOverlay.quit(), []);
-  const togglePanel = useCallback((key: string) => {
-    setPanels((prev) => {
-      const next = { ...prev, [key]: !prev[key] };
-      void window.isleOverlay.setSettings({ panels: next });
-      return next;
-    });
-  }, []);
-  const setTheme = useCallback((t: OverlayTheme) => {
-    setThemeState(t);
-    applyTheme(t);
-    void window.isleOverlay.setSettings({ theme: t });
-  }, []);
-  const setOpacity = useCallback((v: number) => {
-    setOpacityState(v);
-    void window.isleOverlay.setSettings({ opacity: v });
-  }, []);
 
-  if (!booted) {
-    return (
-      <BootScreen
-        serverName={settings?.serverName ?? "TheIsleHud"}
-        overlayLabel={settings?.overlayLabel ?? ""}
-        onDone={() => setBooted(true)}
-      />
-    );
-  }
-
-  if (blocked)
-    return (
-      <div className="overlay" style={{ display: "grid", placeItems: "center" }}>
-        <div
-          style={{
-            fontSize: 140,
-            lineHeight: 1,
-            userSelect: "none",
-            filter: "drop-shadow(0 3px 14px rgba(0,0,0,0.7))",
-          }}
-        >
-          ☹️
-        </div>
-      </div>
-    );
+  if (blocked) return null;
 
   if ((settings?.streamerMode ?? false) && state.focused === false) {
     return (
@@ -1156,51 +567,8 @@ export function App() {
   }
 
   return (
-    <div className={`overlay ${settings?.hudTransparent ? "hudTransparent" : ""} ${mainOpen ? "dashboardOpen" : ""}`}>
+    <div className={`overlay ${settings?.hudTransparent ? "hudTransparent" : ""} ${hudEditMode ? "hudEditMode" : ""}`}>
       <TrollLayer />
-      {mainOpen ? (
-        <MainWindow
-          me={view}
-          theme={theme}
-          settings={settings}
-          authed={auth.authed}
-          ticketUnread={ticketSummary.unread}
-          ticketUrgent={ticketSummary.urgent}
-          focusSupportSignal={focusSupportSignal}
-          onLogin={login}
-          onSettings={() => setSettingsOpen((v) => !v)}
-          onClose={() => setMainOpen(false)}
-        />
-      ) : null}
-
-      {auth.authed && !mainOpen && ticketSummary.unread > 0 ? (
-        <button
-          className={`envelopeFloat interactive-region ${ticketSummary.urgent ? "urgent" : ""}`}
-          title="Unread ticket messages"
-          onClick={() => {
-            setMainOpen(true);
-            setFocusSupportSignal((v) => v + 1);
-          }}
-        >
-          ✉<span className="envelopeCount">{ticketSummary.unread}</span>
-        </button>
-      ) : null}
-
-      {settingsOpen ? (
-        <SettingsPanel
-          settings={settings}
-          theme={theme}
-          panels={panels}
-          opacity={opacity}
-          authed={auth.authed}
-          onTheme={setTheme}
-          onOpacity={setOpacity}
-          onTogglePanel={togglePanel}
-          onLogout={logout}
-          onQuit={quit}
-          onClose={() => setSettingsOpen(false)}
-        />
-      ) : null}
 
       {auth.authed && settings?.serverInfoEnabled && panels.server !== false && view ? (
         <DraggablePanel
@@ -1273,18 +641,12 @@ export function App() {
         </DraggablePanel>
       ) : null}
 
-      <button
-        className="statusPill interactive-region"
-        onClick={() => setMainOpen((v) => !v)}
-        title={t(mainOpen ? "Hide dashboard" : "Show dashboard")}
-        aria-pressed={mainOpen}
-      >
-        <span className={`sig ${state.gameDetected ? "on" : "off"}`} />
-        <span className="statusText">
-          {t("{key} to open dashboard").replace("{key}", settings?.dashKey ?? "F8")}
-        </span>
-      </button>
+      <FullMapOverlay
+        open={fullMapOpen}
+        onClose={() => void window.isleOverlay.fullMap.toggle()}
+        authed={auth.authed}
+        onLogin={login}
+      />
     </div>
   );
 }
-
