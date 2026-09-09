@@ -1274,9 +1274,9 @@ export function MenuWindow() {
           <button
             type="button"
             className="menuTitlebarBtn close"
-            title={t("Close")}
-            aria-label={t("Close")}
-            onClick={() => void window.isleOverlay.menu.close()}
+            title={t("Quit")}
+            aria-label={t("Quit")}
+            onClick={() => void window.isleOverlay.quit()}
           >
             <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true">
               <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
