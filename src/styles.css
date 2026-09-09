@@ -1021,47 +1021,60 @@ body {
   margin-top: 3px;
 }
 
-.tabBar {
+.mainBody {
   position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
+}
+
+.tabSidebar {
+  flex: none;
+  width: 190px;
+  display: flex;
+  flex-direction: column;
   gap: 2px;
-  padding: 6px 8px 0;
-  border-bottom: 1px solid var(--line);
-  overflow-x: auto;
+  padding: 10px 8px;
+  border-right: 1px solid var(--line);
+  overflow-y: auto;
   scrollbar-width: none;
-  scroll-behavior: smooth;
-  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 22px), transparent 100%);
-  mask-image: linear-gradient(90deg, #000 calc(100% - 22px), transparent 100%);
 }
-.tab {
-  flex-shrink: 0;
-}
-.tabBar::-webkit-scrollbar {
+.tabSidebar::-webkit-scrollbar {
   display: none;
 }
 .tab {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   border: 0;
+  border-left: 2px solid transparent;
+  border-radius: 8px;
   background: transparent;
   color: var(--muted);
   font-family: var(--mono);
   font-size: 12px;
   font-weight: 500;
-  padding: 8px 11px 10px;
+  padding: 9px 10px;
   cursor: pointer;
   white-space: nowrap;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
+  text-align: left;
 }
 .tab:hover {
   color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
 }
 .tab.active {
   color: var(--phos);
-  border-bottom-color: var(--phos);
+  border-left-color: var(--phos);
+  background: rgba(124, 242, 166, 0.08);
   text-shadow: 0 0 12px var(--phos-dim);
+}
+.tab span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tab .tabBadge {
+  margin-left: auto;
 }
 .tabSoon {
   font-size: 8px;
@@ -1071,10 +1084,13 @@ body {
   border-radius: 4px;
   padding: 1px 4px;
   text-transform: uppercase;
+  margin-left: auto;
 }
 
 .tabContent {
   position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--line) transparent;

@@ -1071,13 +1071,8 @@ function MenuShell({
           <div className="gateHint">{t("Opens in your browser")}</div>
         </div>
       ) : (
-        <>
-          <div
-            className="tabBar"
-            onWheel={(e) => {
-              if (e.deltaY !== 0) e.currentTarget.scrollLeft += e.deltaY;
-            }}
-          >
+        <div className="mainBody">
+          <div className="tabSidebar">
             {TABS.filter(
               (tabItem) =>
                 (tabItem.key !== "mapedit" || mapEditAdmin) && (tabItem.key !== "admin" || adminModeOn),
@@ -1127,7 +1122,7 @@ function MenuShell({
               <SkinShopTab authed={authed} onLogin={onLogin} />
             </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
