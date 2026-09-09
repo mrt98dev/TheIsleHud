@@ -924,6 +924,62 @@ async function apiGetFile(pathname) {
   }
 }
 
+// Map data (calibration/POIs/categories) rarely changes mid-session, but the
+// embedded radar widget, the detached radar window, and the live-map tab each
+// used to poll /api/overlay/map independently, so opening one after another
+// meant duplicate slow fetches. A shared cache plus a background refresh
+// keeps it warm centrally so every consumer sees an already-loaded result.
+const MAP_DATA_POLL_MS = 15000;
+let mapDataCache = null;
+let mapDataFetchedAt = 0;
+let mapDataRequest = null;
+let mapDataPollTimer = null;
+
+async function fetchMapData() {
+  if (mapDataRequest) return mapDataRequest;
+  mapDataRequest = (async () => {
+    try {
+      const result = await apiFetch("GET", "/api/overlay/map");
+      mapDataCache = result;
+      mapDataFetchedAt = Date.now();
+      return result;
+    } finally {
+      mapDataRequest = null;
+    }
+  })();
+  return mapDataRequest;
+}
+
+function startMapDataPolling() {
+  if (mapDataPollTimer) return;
+  void fetchMapData();
+  mapDataPollTimer = setInterval(() => void fetchMapData(), MAP_DATA_POLL_MS);
+}
+
+function stopMapDataPolling() {
+  if (mapDataPollTimer != null) {
+    clearInterval(mapDataPollTimer);
+    mapDataPollTimer = null;
+  }
+  mapDataCache = null;
+  mapDataFetchedAt = 0;
+}
+
+// The map background tiles are the heaviest part of opening any map view.
+// Their URL is deterministic and needs no auth, so warm Chromium's shared
+// HTTP cache for them right at boot instead of waiting for a window to ask.
+const MAP_TILE_NAMES = ["base", "water", "land"];
+let mapTilesPrefetched = false;
+
+function prefetchMapTiles() {
+  if (mapTilesPrefetched) return;
+  mapTilesPrefetched = true;
+  const layerBase = `${baseApi()}/maps/gateway-v0.21`;
+  for (const name of MAP_TILE_NAMES) {
+    net.fetch(`${layerBase}/${name}.webp`).then((res) => res.arrayBuffer()).catch(() => {});
+  }
+}
+
 const WebSocket = require("ws");
 let liveWs = null;
 let liveBackoff = 1000;
@@ -1081,6 +1137,7 @@ function connectLive() {
   liveStopped = false;
   const token = readSettings().overlayToken;
   if (!token) return;
+  startMapDataPolling();
   if (liveWs) {
     try {
       liveWs.removeAllListeners();
@@ -1124,6 +1181,7 @@ function connectLive() {
 
 function stopLive() {
   liveStopped = true;
+  stopMapDataPolling();
   if (liveTimer) {
     clearTimeout(liveTimer);
     liveTimer = null;
@@ -1262,7 +1320,13 @@ ipcMain.handle("auth:logout", () => {
   menuSend("auth:changed", { steamId: null });
 });
 
-ipcMain.handle("api:get", (_e, pathname) => apiFetch("GET", String(pathname)));
+ipcMain.handle("api:get", (_e, pathname) => {
+  if (String(pathname) === "/api/overlay/map") {
+    if (mapDataCache && Date.now() - mapDataFetchedAt < MAP_DATA_POLL_MS) return mapDataCache;
+    return fetchMapData();
+  }
+  return apiFetch("GET", String(pathname));
+});
 ipcMain.handle("api:post", (_e, pathname, body) => apiFetch("POST", String(pathname), body ?? {}));
 ipcMain.handle("api:getfile", (_e, pathname) => apiGetFile(String(pathname)));
 ipcMain.handle("server:getStatus", () => getServerStatus());
@@ -1402,6 +1466,7 @@ if (!gotLock) {
     createMenuWindow();
     openMenu();
     registerMapShortcut();
+    prefetchMapTiles();
     const boot = readSettings();
     mainWindow.setOpacity(boot.opacity);
     connectLive();
