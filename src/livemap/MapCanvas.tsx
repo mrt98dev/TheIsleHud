@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import type React from "react";
 
 import { worldToNormalized, type MapCalibration } from "./calibration";
@@ -68,20 +68,41 @@ export function MapCanvas({
   useEffect(() => {
     const el = viewRef.current;
     if (!el) return;
-    function onWheel(e: WheelEvent) {
-      e.preventDefault();
-      const rect = el!.getBoundingClientRect();
-      const cx = e.clientX - rect.left;
-      const cy = e.clientY - rect.top;
+    // Zoning/player markers re-render on every scale change (they counter-scale
+    // to stay a constant size), which is heavy with many POIs. A wheel gesture
+    // can fire far more events than the display can paint, so coalesce every
+    // event received within a frame into a single state update instead of one
+    // per event — this is what caused the zoom to feel janky.
+    let rafId: number | null = null;
+    let pendingFactor = 1;
+    let pendingPos: { cx: number; cy: number } | null = null;
+
+    function applyPending() {
+      rafId = null;
+      if (!pendingPos) return;
+      const { cx, cy } = pendingPos;
+      const factor = pendingFactor;
+      pendingPos = null;
+      pendingFactor = 1;
       const { scale, tx, ty } = viewLatest.current;
-      const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
       const ns = Math.min(25, Math.max(1, scale * factor));
       const wx = (cx - tx) / scale;
       const wy = (cy - ty) / scale;
       setView({ scale: ns, tx: cx - wx * ns, ty: cy - wy * ns });
     }
+
+    function onWheel(e: WheelEvent) {
+      e.preventDefault();
+      const rect = el!.getBoundingClientRect();
+      pendingPos = { cx: e.clientX - rect.left, cy: e.clientY - rect.top };
+      pendingFactor *= e.deltaY < 0 ? 1.15 : 1 / 1.15;
+      if (rafId == null) rafId = requestAnimationFrame(applyPending);
+    }
     el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      if (rafId != null) cancelAnimationFrame(rafId);
+    };
   }, []);
 
   useEffect(() => {
@@ -161,6 +182,7 @@ export function MapCanvas({
           inset: 0,
           transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})`,
           transformOrigin: "0 0",
+          willChange: "transform",
         }}
       >
         {layers.map((src) => (
@@ -194,7 +216,7 @@ export function MapCanvas({
   );
 }
 
-function FoodDots({ food, scale }: { food: MapFoodLayer[]; scale: number }) {
+const FoodDots = memo(function FoodDots({ food, scale }: { food: MapFoodLayer[]; scale: number }) {
   const k = 1 / scale;
   const [hover, setHover] = useState<{ cx: number; cy: number; label: string; color: string } | null>(null);
   return (
@@ -222,7 +244,7 @@ function FoodDots({ food, scale }: { food: MapFoodLayer[]; scale: number }) {
       {hover ? <Pill cx={hover.cx} cy={hover.cy - 12 * k} label={hover.label} color={hover.color} k={k} /> : null}
     </g>
   );
-}
+});
 
 function Pill({ cx, cy, label, color, k }: { cx: number; cy: number; label: string; color: string; k: number }) {
   const fontSize = 16 * k;
@@ -256,7 +278,7 @@ function MarkerShape({ shape, cx, cy, r, color }: { shape: string; cx: number; c
   return <circle cx={cx} cy={cy} r={r} {...common} />;
 }
 
-function Shapes({
+const Shapes = memo(function Shapes({
   calibration,
   zones,
   players,
@@ -322,4 +344,4 @@ function Shapes({
       })}
     </>
   );
-}
+});

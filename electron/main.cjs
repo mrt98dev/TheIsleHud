@@ -1322,7 +1322,11 @@ ipcMain.handle("auth:logout", () => {
 
 ipcMain.handle("api:get", (_e, pathname) => {
   if (String(pathname) === "/api/overlay/map") {
-    if (mapDataCache && Date.now() - mapDataFetchedAt < MAP_DATA_POLL_MS) return mapDataCache;
+    // Serve whatever we already have instantly (stale-while-revalidate) — the
+    // background poll in startMapDataPolling keeps it fresh independently, so
+    // a caller landing right as that poll is mid-flight never has to wait on
+    // it. Only the very first call ever (before any cache exists) blocks.
+    if (mapDataCache) return mapDataCache;
     return fetchMapData();
   }
   return apiFetch("GET", String(pathname));
