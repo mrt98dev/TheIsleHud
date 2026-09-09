@@ -65,7 +65,7 @@ function BootScreen({ onDone, serverName, overlayLabel }: { onDone: () => void; 
           <div className="bootBar" aria-hidden="true">
             <div className="bootBarFill" />
           </div>
-          <div className="bootCredit">Coded by RayJacobs</div>
+          <div className="bootCredit">Coded by mrt98dev</div>
         </div>
       </div>
     </div>
@@ -850,7 +850,7 @@ function SettingsPanel({
           </div>
           <div className="secLabel">{t("About")}</div>
           <div className="hint">{[settings?.serverName ?? "TheIsleHud", settings?.overlayLabel].filter(Boolean).join(" ")} · v{__APP_VERSION__}</div>
-          <div className="hint">Coded by RayJacobs</div>
+          <div className="hint">Coded by mrt98dev</div>
           </>)}
           </div>
         </div>
