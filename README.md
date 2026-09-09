@@ -10,10 +10,13 @@ minimap, live player data, and a smooth location/friend compass. Press `F8` to
 open or close the dashboard; the HUD remains visible while you play.
 
 > [!IMPORTANT]
-> This repository preserves the upstream Git history and credits the original
-> project and author. The upstream repository did not publish a license when it
-> was imported, so this project does not claim to relicense that source code.
-> See [License and attribution](#license-and-attribution) and
+> This project is a derivative work built on
+> [TheIsleAE3Mien/TheIsleCustomHud](https://github.com/TheIsleAE3Mien/TheIsleCustomHud),
+> itself derived from [reversum/isle-overlay](https://github.com/reversum/isle-overlay).
+> Neither upstream repository published a license when its source was imported,
+> so this project does not claim to relicense that source code, and this
+> repository does not carry the full upstream Git history. See
+> [License and attribution](#license-and-attribution) and
 > [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## HUD preview
@@ -234,15 +237,20 @@ Original project: [reversum/isle-overlay](https://github.com/reversum/isle-overl
 Original source author/credit: **Yannik F / YannikAufDie1 / reversum**  
 Imported upstream commit: `fe7eb0c7f95258b7d7a13694d08629aaed37a5f4`
 
-At import time, the upstream repository had no `LICENSE` file, no package
-license declaration, and no GitHub-detected license. Copyright therefore remains
-with the respective authors, and no open-source license is implied. The notice
-in [LICENSE](LICENSE) records this status; it is not a substitute for permission
-from the upstream copyright holder.
+Direct source of this fork: [TheIsleAE3Mien/TheIsleCustomHud](https://github.com/TheIsleAE3Mien/TheIsleCustomHud) —
+Vietnamese-first customization, HUD layout, and features built on top of the
+original upstream project.
 
-Custom changes and repository maintenance are credited to
-[mrt98dev](https://github.com/mrt98dev). Upstream attribution must be kept in
-redistributions and derivative versions.
+At import time, neither the original upstream repository nor
+TheIsleAE3Mien/TheIsleCustomHud published a license or GitHub-detected license.
+Copyright therefore remains with the respective authors, and no open-source
+license is implied for either layer. The notice in [LICENSE](LICENSE) records
+this status; it is not a substitute for permission from the upstream or
+intermediate copyright holders.
+
+Custom changes and repository maintenance in this fork are credited to
+[mrt98dev](https://github.com/mrt98dev). Upstream and intermediate attribution
+must be kept in redistributions and derivative versions.
 
 ## Credits
 
@@ -250,5 +258,7 @@ redistributions and derivative versions.
   application, architecture, UI, and source code.
 - **Yannik F / YannikAufDie1** — original author named in the upstream commit and
   package metadata.
+- [TheIsleAE3Mien/TheIsleCustomHud](https://github.com/TheIsleAE3Mien/TheIsleCustomHud) —
+  Vietnamese-first customization and HUD features that this fork builds on.
 - [mrt98dev](https://github.com/mrt98dev) — customization, repository
   maintenance, and release automation.

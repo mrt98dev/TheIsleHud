@@ -11,11 +11,14 @@ các widget có thể di chuyển, minimap, dữ liệu người chơi trực ti
 hiển thị trong khi bạn chơi.
 
 > [!IMPORTANT]
-> Kho lưu trữ này giữ nguyên lịch sử Git gốc (upstream) và ghi nhận công lao
-> của dự án cũng như tác giả gốc. Kho lưu trữ upstream không công bố giấy phép
-> tại thời điểm được nhập vào, nên dự án này không tuyên bố cấp lại giấy phép
-> cho mã nguồn đó. Xem [Giấy phép và ghi nhận công lao](#giấy-phép-và-ghi-nhận-công-lao)
-> và [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+> Dự án này là bản phái sinh xây dựng trên
+> [TheIsleAE3Mien/TheIsleCustomHud](https://github.com/TheIsleAE3Mien/TheIsleCustomHud),
+> vốn được tùy biến từ [reversum/isle-overlay](https://github.com/reversum/isle-overlay).
+> Cả hai kho lưu trữ upstream đều không công bố giấy phép tại thời điểm mã
+> nguồn được nhập vào, nên dự án này không tuyên bố cấp lại giấy phép cho mã
+> nguồn đó, và kho lưu trữ này cũng không giữ đầy đủ lịch sử Git gốc. Xem
+> [Giấy phép và ghi nhận công lao](#giấy-phép-và-ghi-nhận-công-lao) và
+> [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Xem trước HUD
 
@@ -240,15 +243,21 @@ Dự án gốc: [reversum/isle-overlay](https://github.com/reversum/isle-overlay
 Tác giả/ghi nhận nguồn gốc: **Yannik F / YannikAufDie1 / reversum**
 Commit upstream đã nhập: `fe7eb0c7f95258b7d7a13694d08629aaed37a5f4`
 
-Tại thời điểm nhập, kho lưu trữ upstream không có file `LICENSE`, không khai
-báo giấy phép trong package, và GitHub không phát hiện giấy phép nào. Do đó,
-bản quyền vẫn thuộc về các tác giả tương ứng, và không có giấy phép mã nguồn mở
-nào được ngụ ý. Thông báo trong [LICENSE](LICENSE) ghi lại tình trạng này; đây
-không phải là sự thay thế cho việc xin phép từ chủ sở hữu bản quyền upstream.
+Nguồn trực tiếp của bản fork này: [TheIsleAE3Mien/TheIsleCustomHud](https://github.com/TheIsleAE3Mien/TheIsleCustomHud)
+— phần tùy biến ưu tiên tiếng Việt, bố cục HUD, và tính năng xây dựng thêm trên
+nền dự án upstream gốc.
 
-Các thay đổi tùy chỉnh và việc bảo trì kho lưu trữ được ghi nhận cho
-[mrt98dev](https://github.com/mrt98dev). Việc ghi nhận công lao upstream phải
-được giữ lại trong các bản phân phối lại và phiên bản phái sinh.
+Tại thời điểm nhập, cả kho lưu trữ upstream gốc lẫn
+TheIsleAE3Mien/TheIsleCustomHud đều không công bố giấy phép hay được GitHub
+phát hiện giấy phép nào. Do đó, bản quyền vẫn thuộc về các tác giả tương ứng ở
+cả hai lớp, và không có giấy phép mã nguồn mở nào được ngụ ý. Thông báo trong
+[LICENSE](LICENSE) ghi lại tình trạng này; đây không phải là sự thay thế cho
+việc xin phép từ chủ sở hữu bản quyền upstream hoặc lớp trung gian.
+
+Các thay đổi tùy chỉnh và việc bảo trì kho lưu trữ trong bản fork này được ghi
+nhận cho [mrt98dev](https://github.com/mrt98dev). Việc ghi nhận công lao
+upstream và lớp trung gian phải được giữ lại trong các bản phân phối lại và
+phiên bản phái sinh.
 
 ## Ghi nhận công lao
 
@@ -256,5 +265,8 @@ Các thay đổi tùy chỉnh và việc bảo trì kho lưu trữ được ghi 
   gốc, kiến trúc, giao diện, và mã nguồn gốc.
 - **Yannik F / YannikAufDie1** — tác giả gốc được nêu tên trong commit upstream
   và metadata của package.
+- [TheIsleAE3Mien/TheIsleCustomHud](https://github.com/TheIsleAE3Mien/TheIsleCustomHud)
+  — phần tùy biến ưu tiên tiếng Việt và các tính năng HUD mà bản fork này kế
+  thừa.
 - [mrt98dev](https://github.com/mrt98dev) — tùy chỉnh, bảo trì kho lưu trữ, và
   tự động hóa phát hành.
