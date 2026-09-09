@@ -589,6 +589,7 @@ function createMenuWindow() {
     icon: path.join(__dirname, "tray.ico"),
     frame: false,
     transparent: false,
+    backgroundColor: "#060a08",
     resizable: true,
     movable: true,
     minimizable: true,
