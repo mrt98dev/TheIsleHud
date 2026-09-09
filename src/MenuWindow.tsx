@@ -1097,23 +1097,35 @@ function MenuShell({
             ))}
           </div>
           <div className="tabContent">
-            {tab === "profile" ? (
+            {/* Every tab below except Skin Editor (3D, mounted only on demand) stays
+                mounted once reached so its data survives switching away and back —
+                no refetch, no loading flash on return. */}
+            <div style={{ display: tab === "profile" ? "contents" : "none" }}>
               <DashboardTab me={me} theme={theme} onGoto={setTab} supportOn={adminModeOn} language={language} />
-            ) : tab === "livemap" ? (
+            </div>
+            <div style={{ display: tab === "livemap" ? "contents" : "none" }}>
               <LiveMapTab authed={authed} onLogin={onLogin} />
-            ) : tab === "skin" ? (
-              <SkinEditorTab authed={authed} onLogin={onLogin} />
-            ) : tab === "garage" ? (
+            </div>
+            {tab === "skin" ? <SkinEditorTab authed={authed} onLogin={onLogin} /> : null}
+            <div style={{ display: tab === "garage" ? "contents" : "none" }}>
               <GarageTab authed={authed} onLogin={onLogin} />
-            ) : tab === "mapedit" && mapEditAdmin ? (
-              <MapEditorTab authed={authed} onLogin={onLogin} />
-            ) : tab === "admin" && adminModeOn ? (
-              <AdminTab authed={authed} onLogin={onLogin} />
-            ) : tab === "dinoshop" ? (
+            </div>
+            {mapEditAdmin ? (
+              <div style={{ display: tab === "mapedit" ? "contents" : "none" }}>
+                <MapEditorTab authed={authed} onLogin={onLogin} />
+              </div>
+            ) : null}
+            {adminModeOn ? (
+              <div style={{ display: tab === "admin" ? "contents" : "none" }}>
+                <AdminTab authed={authed} onLogin={onLogin} />
+              </div>
+            ) : null}
+            <div style={{ display: tab === "dinoshop" ? "contents" : "none" }}>
               <DinoShopTab authed={authed} onLogin={onLogin} />
-            ) : (
+            </div>
+            <div style={{ display: tab === "skinshop" ? "contents" : "none" }}>
               <SkinShopTab authed={authed} onLogin={onLogin} />
-            )}
+            </div>
           </div>
         </>
       )}
