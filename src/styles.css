@@ -572,7 +572,8 @@ body {
   color: var(--phos);
   background: rgba(124, 242, 166, 0.08);
 }
-.chip.soon {
+.chip.soon,
+.chip:disabled {
   opacity: 0.5;
   cursor: default;
 }

@@ -886,6 +886,7 @@ function trackGame() {
   ) {
     lastOverlayState = nextOverlayState;
     mainWindow.webContents.send("overlay:state", nextOverlayState);
+    menuSend("overlay:state", nextOverlayState);
   }
 }
 
@@ -1211,7 +1212,7 @@ ipcMain.handle("menu:maximize", () => {
 });
 
 ipcMain.handle("hudEdit:set", (_e, on) => {
-  hudEditMode = !!on;
+  hudEditMode = Boolean(on) && gameHwnd != null;
   applyOverlayInteractive();
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("hudEdit:changed", hudEditMode);
   if (menuWindow && !menuWindow.isDestroyed()) menuWindow.webContents.send("hudEdit:changed", hudEditMode);

@@ -18,6 +18,7 @@ import type {
   AuthInfo,
   LiveFrame,
   OverlaySettings,
+  OverlayState,
   OverlayTheme,
   PlayerMe,
 } from "./preload";
@@ -399,6 +400,7 @@ function SettingsPanel({
   panels,
   opacity,
   authed,
+  gameDetected,
   onTheme,
   onOpacity,
   onTogglePanel,
@@ -411,6 +413,7 @@ function SettingsPanel({
   panels: Record<string, boolean>;
   opacity: number;
   authed: boolean;
+  gameDetected: boolean;
   onTheme: (t: OverlayTheme) => void;
   onOpacity: (v: number) => void;
   onTogglePanel: (k: string) => void;
@@ -504,9 +507,13 @@ function SettingsPanel({
 
           <div className="secLabel">{t("Edit HUD layout")}</div>
           <div className="hint">{t("Turn this on to drag and resize overlay widgets in-game; turn it off to click through the overlay again.")}</div>
+          {!gameDetected ? (
+            <div className="hint">{t("Requires The Isle to be running.")}</div>
+          ) : null}
           <div className="featRow">
             <button
               className={`chip ${hudEditMode ? "on" : ""}`}
+              disabled={!gameDetected}
               onClick={() => void window.isleOverlay.hudEdit.set(!hudEditMode)}
             >
               {hudEditMode ? "ON" : "OFF"}
@@ -1124,6 +1131,7 @@ export function MenuWindow() {
   const [blocked, setBlocked] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [ticketSummary, setTicketSummary] = useState({ unread: 0, urgent: false });
+  const [overlayState, setOverlayState] = useState<OverlayState>({ gameDetected: false, active: false });
   const mounted = useRef(false);
   const language = settings?.language ?? "en";
   const t = (text: string) => tr(language, text);
@@ -1134,6 +1142,12 @@ export function MenuWindow() {
 
   useEffect(() => {
     const off = window.isleOverlay.onBlocked((b) => setBlocked(b));
+    return off;
+  }, []);
+
+  useEffect(() => {
+    void window.isleOverlay.getState().then(setOverlayState);
+    const off = window.isleOverlay.onState(setOverlayState);
     return off;
   }, []);
 
@@ -1293,6 +1307,7 @@ export function MenuWindow() {
           panels={panels}
           opacity={opacity}
           authed={auth.authed}
+          gameDetected={overlayState.gameDetected}
           onTheme={setTheme}
           onOpacity={setOpacity}
           onTogglePanel={togglePanel}
