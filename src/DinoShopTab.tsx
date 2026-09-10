@@ -33,7 +33,15 @@ function money(n: number, name?: string, symbol?: string): string {
     : `${n.toLocaleString("en-US")} ${name ?? "Coins"}`;
 }
 
-export function DinoShopTab({ authed, onLogin }: { authed: boolean; onLogin: () => void }) {
+export function DinoShopTab({
+  authed,
+  onLogin,
+  active,
+}: {
+  authed: boolean;
+  onLogin: () => void;
+  active: boolean;
+}) {
   const [data, setData] = useState<ShopResp | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -144,7 +152,7 @@ export function DinoShopTab({ authed, onLogin }: { authed: boolean; onLogin: () 
       ) : selected ? (
         <>
           <div className="gViewer interactive-region">
-            <DinoModelViewer species={selected.species} palette={selected.palette} controls />
+            <DinoModelViewer species={selected.species} palette={selected.palette} controls active={active} />
           </div>
 
           <div className="gInfo">

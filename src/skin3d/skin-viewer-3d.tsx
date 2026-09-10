@@ -178,12 +178,14 @@ export function SkinViewer3D({
   renderMode,
   glitchLab,
   controls = true,
+  active = true,
 }: {
   species: string;
   palette: SkinPalette;
   renderMode: SkinRenderMode;
   glitchLab: GlitchLabConfig;
   controls?: boolean;
+  active?: boolean;
 }) {
   const dino = resolveDino(species);
   if (!dino) {
@@ -201,6 +203,13 @@ export function SkinViewer3D({
           alpha: true,
           powerPreference: "high-performance",
         }}
+        // Garage/shop tabs auto-select a dino and mount this viewer as soon as
+        // their data loads, well before the user ever switches to that tab —
+        // and it then stays mounted in the background like the other tabs.
+        // Without this, its animation mixer's per-frame render loop keeps
+        // running forever off-screen, which is what made switching between
+        // tabs feel janky (several of these can be alive at once).
+        frameloop={active ? "always" : "never"}
       >
         <ambientLight intensity={0.7} />
         <hemisphereLight args={["#cfe3ff", "#3a2f28", 0.6]} />

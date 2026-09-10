@@ -947,32 +947,30 @@ function iconCachePaths(key) {
   };
 }
 
-function readIconCache(key) {
+async function readIconCache(key) {
   try {
     const { data, mime } = iconCachePaths(key);
-    const buf = fs.readFileSync(data);
-    const mimeType = fs.existsSync(mime) ? fs.readFileSync(mime, "utf8").trim() : "application/octet-stream";
+    const buf = await fs.promises.readFile(data);
+    const mimeType = await fs.promises
+      .readFile(mime, "utf8")
+      .then((s) => s.trim())
+      .catch(() => "application/octet-stream");
     return { dataUrl: `data:${mimeType};base64,${buf.toString("base64")}`, cached: true };
   } catch {
     return null;
   }
 }
 
-function writeIconCache(key, buf, mimeType) {
+async function writeIconCache(key, buf, mimeType) {
   try {
-    fs.mkdirSync(iconCacheDir, { recursive: true });
+    await fs.promises.mkdir(iconCacheDir, { recursive: true });
     const { data, mime } = iconCachePaths(key);
-    fs.writeFileSync(data, buf);
-    fs.writeFileSync(mime, mimeType, "utf8");
+    await Promise.all([fs.promises.writeFile(data, buf), fs.promises.writeFile(mime, mimeType, "utf8")]);
   } catch {
   }
 }
 
-async function getIconCached(rawUrl) {
-  if (!rawUrl) return { error: "empty" };
-  const isAbsolute = /^https?:\/\//i.test(rawUrl);
-  const url = isAbsolute ? rawUrl : `${baseApi()}${rawUrl}`;
-  const key = iconCacheKey(rawUrl);
+async function fetchIconAndCache(url, key, isAbsolute) {
   const headers = {};
   if (!isAbsolute) {
     const s = readSettings();
@@ -983,13 +981,29 @@ async function getIconCached(rawUrl) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const mimeType = res.headers.get("content-type") || "application/octet-stream";
     const buf = Buffer.from(await res.arrayBuffer());
-    writeIconCache(key, buf, mimeType);
+    await writeIconCache(key, buf, mimeType);
     return { dataUrl: `data:${mimeType};base64,${buf.toString("base64")}` };
   } catch (err) {
-    const cached = readIconCache(key);
-    if (cached) return cached;
     return { error: String(err && err.message ? err.message : err) };
   }
+}
+
+// A POI-heavy server can trigger dozens of these on the very first live-map
+// render of a session. Serving the already-cached copy immediately (instead
+// of waiting on a network round trip first) keeps that first open fast; the
+// network refresh still runs, just in the background, so a changed icon
+// shows up next time without ever blocking the renderer on it.
+async function getIconCached(rawUrl) {
+  if (!rawUrl) return { error: "empty" };
+  const isAbsolute = /^https?:\/\//i.test(rawUrl);
+  const url = isAbsolute ? rawUrl : `${baseApi()}${rawUrl}`;
+  const key = iconCacheKey(rawUrl);
+  const cached = await readIconCache(key);
+  if (cached) {
+    void fetchIconAndCache(url, key, isAbsolute);
+    return cached;
+  }
+  return fetchIconAndCache(url, key, isAbsolute);
 }
 
 // Map data (calibration/POIs/categories) rarely changes mid-session, but the

@@ -123,7 +123,15 @@ function readStore(key: string): SelAsset[] {
   }
 }
 
-export function MapEditorTab({ authed, onLogin }: { authed: boolean; onLogin: () => void }) {
+export function MapEditorTab({
+  authed,
+  onLogin,
+  active,
+}: {
+  authed: boolean;
+  onLogin: () => void;
+  active: boolean;
+}) {
   const [access, setAccess] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -167,10 +175,10 @@ export function MapEditorTab({ authed, onLogin }: { authed: boolean; onLogin: ()
       </div>
     );
   }
-  return <MapEditor />;
+  return <MapEditor active={active} />;
 }
 
-function MapEditor() {
+function MapEditor({ active }: { active: boolean }) {
   const catalog = CATALOG;
   const [objects, setObjects] = useState<MapObject[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -478,6 +486,12 @@ function MapEditor() {
           dpr={[1, 1.5]}
           camera={{ position: [8, 6, 8], fov: 45, near: 0.1, far: 100000 }}
           gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
+          // The tab stays mounted (hidden) so editor state survives switching
+          // away and back, but that means its render loop would otherwise
+          // keep spinning every frame in the background — competing with
+          // whatever tab is actually visible and making tab switches feel
+          // janky. Stop the loop entirely while this tab isn't the active one.
+          frameloop={active ? "always" : "never"}
         >
           <ambientLight intensity={0.8} />
           <directionalLight position={[10, 16, 8]} intensity={1.4} />

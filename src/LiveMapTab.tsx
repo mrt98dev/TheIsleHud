@@ -21,6 +21,7 @@ type MapResp = {
   status?: number;
 };
 
+const MAP_LAYER_PATH = "maps/gateway-v0.21";
 const UNCAT = "__uncat__";
 const FOOD_COLORS = new Map(
   ISLE_FOOD_SPAWNS.map((f, i, a) => [f.type, `hsl(${Math.round((i * 360) / a.length)} 70% 55%)`]),
@@ -48,6 +49,19 @@ export function LiveMapTab({ authed, onLogin }: { authed: boolean; onLogin: () =
       if (s.apiBaseUrl) setBase(s.apiBaseUrl.replace(/\/+$/, ""));
     });
   }, []);
+
+  // This tab is mounted (just visually hidden) as soon as the menu window
+  // opens, well before the user ever clicks "Live Map". Decoding the map
+  // tiles here warms the renderer's image cache in the background, so the
+  // first real switch to this tab doesn't pay a one-time decode/layout
+  // freeze for images the browser never had to paint until now.
+  useEffect(() => {
+    for (const name of ["base", "water", "land"]) {
+      const img = new Image();
+      img.src = `${base}/${MAP_LAYER_PATH}/${name}.webp`;
+      void img.decode?.().catch(() => {});
+    }
+  }, [base]);
 
   const refresh = useCallback(async () => {
     const r = await window.isleOverlay.apiGet<MapResp>("/api/overlay/map");
@@ -107,7 +121,7 @@ export function LiveMapTab({ authed, onLogin }: { authed: boolean; onLogin: () =
     return server;
   }, [data?.markers, live]);
 
-  const layerBase = `${base}/maps/gateway-v0.21`;
+  const layerBase = `${base}/${MAP_LAYER_PATH}`;
 
   if (!authed) {
     return (

@@ -36,9 +36,11 @@ function pct(v: number): string {
 export function GarageTab({
   authed,
   onLogin,
+  active,
 }: {
   authed: boolean;
   onLogin: () => void;
+  active: boolean;
 }) {
   const [data, setData] = useState<GarageData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -281,7 +283,7 @@ export function GarageTab({
       ) : selected ? (
         <>
           <div className="gViewer interactive-region">
-            <DinoModelViewer species={selected.species} palette={selected.palette as SkinPalette} controls />
+            <DinoModelViewer species={selected.species} palette={selected.palette as SkinPalette} controls active={active} />
           </div>
 
           <div className="gInfo">

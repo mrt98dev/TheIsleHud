@@ -6,10 +6,12 @@ export function DinoModelViewer({
   species,
   palette = DEFAULT_PALETTE,
   controls = true,
+  active = true,
 }: {
   species: string;
   palette?: SkinPalette;
   controls?: boolean;
+  active?: boolean;
 }) {
   if (!hasSkin3D(species)) {
     return <div className="skinViewerEmpty">No preview</div>;
@@ -21,6 +23,7 @@ export function DinoModelViewer({
       renderMode="standard"
       glitchLab={DEFAULT_GLITCH_LAB}
       controls={controls}
+      active={active}
     />
   );
 }

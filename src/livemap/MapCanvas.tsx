@@ -192,6 +192,7 @@ export function MapCanvas({
             src={src}
             alt=""
             draggable={false}
+            decoding="async"
             style={{
               position: "absolute",
               inset: 0,

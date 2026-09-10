@@ -1103,11 +1103,11 @@ function MenuShell({
             </div>
             {tab === "skin" ? <SkinEditorTab authed={authed} onLogin={onLogin} /> : null}
             <div style={{ display: tab === "garage" ? "contents" : "none" }}>
-              <GarageTab authed={authed} onLogin={onLogin} />
+              <GarageTab authed={authed} onLogin={onLogin} active={tab === "garage"} />
             </div>
             {mapEditAdmin ? (
               <div style={{ display: tab === "mapedit" ? "contents" : "none" }}>
-                <MapEditorTab authed={authed} onLogin={onLogin} />
+                <MapEditorTab authed={authed} onLogin={onLogin} active={tab === "mapedit"} />
               </div>
             ) : null}
             {adminModeOn ? (
@@ -1116,10 +1116,10 @@ function MenuShell({
               </div>
             ) : null}
             <div style={{ display: tab === "dinoshop" ? "contents" : "none" }}>
-              <DinoShopTab authed={authed} onLogin={onLogin} />
+              <DinoShopTab authed={authed} onLogin={onLogin} active={tab === "dinoshop"} />
             </div>
             <div style={{ display: tab === "skinshop" ? "contents" : "none" }}>
-              <SkinShopTab authed={authed} onLogin={onLogin} />
+              <SkinShopTab authed={authed} onLogin={onLogin} active={tab === "skinshop"} />
             </div>
           </div>
         </div>
