@@ -2,6 +2,7 @@ const { app, BrowserWindow, globalShortcut, ipcMain, net, shell, screen, Tray, M
 const { autoUpdater } = require("electron-updater");
 const path = require("path");
 const fs = require("fs");
+const crypto = require("crypto");
 const { Worker } = require("worker_threads");
 const {
   DEFAULT_SERVER_NAME,
@@ -925,6 +926,72 @@ async function apiGetFile(pathname) {
   }
 }
 
+// Map POI/marker icons are arbitrary URLs picked by server-side admins. Any
+// one of them can go stale (deleted upload, expired CDN link, a hiccup on the
+// remote host) and a plain <img>/<image> has no way to recover once that
+// happens. So every icon load is routed through here instead: on a
+// successful fetch we persist the bytes to disk, and if a later fetch fails
+// we serve that last-known-good copy instead of leaving a broken image on
+// the map. Only ever falls back to a shape marker (see the renderer) if an
+// icon has never once loaded successfully.
+const iconCacheDir = path.join(app.getPath("userData"), "icon-cache");
+
+function iconCacheKey(url) {
+  return crypto.createHash("sha1").update(url).digest("hex");
+}
+
+function iconCachePaths(key) {
+  return {
+    data: path.join(iconCacheDir, key),
+    mime: path.join(iconCacheDir, `${key}.mime`),
+  };
+}
+
+function readIconCache(key) {
+  try {
+    const { data, mime } = iconCachePaths(key);
+    const buf = fs.readFileSync(data);
+    const mimeType = fs.existsSync(mime) ? fs.readFileSync(mime, "utf8").trim() : "application/octet-stream";
+    return { dataUrl: `data:${mimeType};base64,${buf.toString("base64")}`, cached: true };
+  } catch {
+    return null;
+  }
+}
+
+function writeIconCache(key, buf, mimeType) {
+  try {
+    fs.mkdirSync(iconCacheDir, { recursive: true });
+    const { data, mime } = iconCachePaths(key);
+    fs.writeFileSync(data, buf);
+    fs.writeFileSync(mime, mimeType, "utf8");
+  } catch {
+  }
+}
+
+async function getIconCached(rawUrl) {
+  if (!rawUrl) return { error: "empty" };
+  const isAbsolute = /^https?:\/\//i.test(rawUrl);
+  const url = isAbsolute ? rawUrl : `${baseApi()}${rawUrl}`;
+  const key = iconCacheKey(rawUrl);
+  const headers = {};
+  if (!isAbsolute) {
+    const s = readSettings();
+    if (s.overlayToken) headers.Authorization = `Bearer ${s.overlayToken}`;
+  }
+  try {
+    const res = await net.fetch(url, { method: "GET", headers });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const mimeType = res.headers.get("content-type") || "application/octet-stream";
+    const buf = Buffer.from(await res.arrayBuffer());
+    writeIconCache(key, buf, mimeType);
+    return { dataUrl: `data:${mimeType};base64,${buf.toString("base64")}` };
+  } catch (err) {
+    const cached = readIconCache(key);
+    if (cached) return cached;
+    return { error: String(err && err.message ? err.message : err) };
+  }
+}
+
 // Map data (calibration/POIs/categories) rarely changes mid-session, but the
 // embedded radar widget, the detached radar window, and the live-map tab each
 // used to poll /api/overlay/map independently, so opening one after another
@@ -1334,6 +1401,7 @@ ipcMain.handle("api:get", (_e, pathname) => {
 });
 ipcMain.handle("api:post", (_e, pathname, body) => apiFetch("POST", String(pathname), body ?? {}));
 ipcMain.handle("api:getfile", (_e, pathname) => apiGetFile(String(pathname)));
+ipcMain.handle("icon:get", (_e, url) => getIconCached(String(url)));
 ipcMain.handle("server:getStatus", () => getServerStatus());
 
 let mapCatalogCache = null;

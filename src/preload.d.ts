@@ -186,6 +186,7 @@ export type IsleOverlayBridge = {
   apiGet: <T = unknown>(pathname: string) => Promise<ApiResult<T>>;
   apiPost: <T = unknown>(pathname: string, body?: unknown) => Promise<ApiResult<T>>;
   apiGetFile: (pathname: string) => Promise<{ dataUrl?: string; error?: string; status?: number }>;
+  iconGet: (url: string) => Promise<{ dataUrl?: string; cached?: boolean; error?: string }>;
   getServerStatus: () => Promise<ServerStatus>;
   getMapCatalog: () => Promise<MapCatalog>;
   onLive: (cb: (d: LiveFrame) => void) => () => void;

@@ -1,5 +1,7 @@
 import type React from "react";
 
+import { useIconSrc } from "./livemap/icon-cache";
+
 export type RadarMarker = {
   id: string;
   u: number;
@@ -12,6 +14,24 @@ export type RadarMarker = {
 };
 
 export type RadarShape = "circle" | "square";
+
+function MarkerIcon({
+  icon,
+  kind,
+  shape,
+  color,
+  r,
+}: {
+  icon: string;
+  kind: string;
+  shape?: string;
+  color: string;
+  r: number;
+}) {
+  const src = useIconSrc(icon);
+  if (!src) return <Glyph kind={kind} shape={shape} color={color} r={r} />;
+  return <image href={src} x={-7} y={-7} width={14} height={14} preserveAspectRatio="xMidYMid meet" />;
+}
 
 function Glyph({ kind, shape, color, r }: { kind: string; shape?: string; color: string; r: number }) {
   const stroke = "rgba(0,0,0,0.55)";
@@ -144,7 +164,7 @@ export function RadarView({
           return (
             <g key={m.id} transform={`translate(${x} ${y})`}>
               {m.icon ? (
-                <image href={m.icon} x={-7} y={-7} width={14} height={14} preserveAspectRatio="xMidYMid meet" />
+                <MarkerIcon icon={m.icon} kind={m.kind} shape={m.shape} color={m.color} r={r} />
               ) : (
                 <Glyph kind={m.kind} shape={m.shape} color={m.color} r={r} />
               )}

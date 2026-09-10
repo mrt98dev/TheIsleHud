@@ -2,6 +2,7 @@ import { memo, useEffect, useRef, useState } from "react";
 import type React from "react";
 
 import { worldToNormalized, type MapCalibration } from "./calibration";
+import { useIconSrc } from "./icon-cache";
 
 export type MapPoint = { x: number; y: number };
 
@@ -263,6 +264,28 @@ function Pill({ cx, cy, label, color, k }: { cx: number; cy: number; label: stri
   );
 }
 
+function ZoneIcon({
+  icon,
+  isPolygon,
+  shape,
+  cx,
+  cy,
+  r,
+  color,
+}: {
+  icon: string;
+  isPolygon: boolean;
+  shape: string;
+  cx: number;
+  cy: number;
+  r: number;
+  color: string;
+}) {
+  const src = useIconSrc(icon);
+  if (!src) return isPolygon ? null : <MarkerShape shape={shape} cx={cx} cy={cy} r={r} color={color} />;
+  return <image href={src} x={cx - r} y={cy - r} width={2 * r} height={2 * r} preserveAspectRatio="xMidYMid meet" />;
+}
+
 function MarkerShape({ shape, cx, cy, r, color }: { shape: string; cx: number; cy: number; r: number; color: string }) {
   const common = {
     fill: color,
@@ -305,7 +328,7 @@ const Shapes = memo(function Shapes({
               <polygon points={pts.map((p) => `${p.x},${p.y}`).join(" ")} fill={zone.color} fillOpacity={0.3} stroke={zone.color} strokeWidth={2} vectorEffect="non-scaling-stroke" />
             ) : null}
             {zone.icon ? (
-              <image href={zone.icon} x={cx - r} y={cy - r} width={2 * r} height={2 * r} preserveAspectRatio="xMidYMid meet" />
+              <ZoneIcon icon={zone.icon} isPolygon={isPolygon} shape={zone.shape ?? "circle"} cx={cx} cy={cy} r={r} color={zone.color} />
             ) : !isPolygon ? (
               <MarkerShape shape={zone.shape ?? "circle"} cx={cx} cy={cy} r={r} color={zone.color} />
             ) : null}
