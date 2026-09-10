@@ -107,10 +107,15 @@ contextBridge.exposeInMainWorld("isleOverlay", {
     toggle: () => ipcRenderer.invoke("fullMap:toggle"),
   },
   onFullMap: (cb) => {
-    const listener = (_e, open) => cb(open);
+    const listener = (_e, open, t0) => cb(open, t0);
     ipcRenderer.on("fullMap:changed", listener);
     return () => ipcRenderer.removeListener("fullMap:changed", listener);
   },
+  // TEMP DIAGNOSTIC: reports back to the main process once the renderer has
+  // actually painted the map, so the full open-to-paint time shows up in the
+  // main-process console. Remove alongside the mapTimingLog code in main.cjs.
+  debugMapPainted: (t0) => ipcRenderer.invoke("debug:mapPainted", t0),
+  debugLog: (msg) => ipcRenderer.invoke("debug:log", msg),
 
   updaterRestart: () => ipcRenderer.invoke("updater:restart"),
   updaterCheck: () => ipcRenderer.invoke("updater:check"),

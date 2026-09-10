@@ -30,8 +30,34 @@ const CloseHandle = kernel32.func("int __stdcall CloseHandle(intptr handle)");
 const QueryFullProcessImageNameW = kernel32.func(
   "int __stdcall QueryFullProcessImageNameW(intptr handle, uint32 flags, _Out_ char16 *buf, _Inout_ uint32 *size)",
 );
+const SetPriorityClass = kernel32.func("int __stdcall SetPriorityClass(intptr hProcess, uint32 dwPriorityClass)");
 
 const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+const PROCESS_SET_INFORMATION = 0x0200;
+const ABOVE_NORMAL_PRIORITY_CLASS = 0x8000;
+
+// The overlay's own processes (main + each renderer) run at Windows' default
+// NORMAL priority, same as everything else. Under real CPU pressure from a
+// demanding game, that means the OS can and does deprioritize our process's
+// threads in favor of the game's — observed as multi-second stalls in the
+// overlay's own rendering with no corresponding JS work to explain them
+// (the browser-reported "long task" duration was actually mostly *wait time
+// for a CPU core*, not time spent executing). Nudging our processes to
+// ABOVE_NORMAL asks the scheduler to favor them a little more without going
+// so high (HIGH/REALTIME) that we risk starving the game or the rest of the
+// system.
+function raiseProcessPriority(pid) {
+  if (!pid) return false;
+  const handle = OpenProcess(PROCESS_SET_INFORMATION | PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+  if (!handle) return false;
+  try {
+    return Boolean(SetPriorityClass(handle, ABOVE_NORMAL_PRIORITY_CLASS));
+  } catch {
+    return false;
+  } finally {
+    CloseHandle(handle);
+  }
+}
 
 function windowPid(hwnd) {
   const out = [0];
@@ -114,4 +140,5 @@ module.exports = {
   hwndFromBuffer,
   isSameWindow,
   focusWindow,
+  raiseProcessPriority,
 };

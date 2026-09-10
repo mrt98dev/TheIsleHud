@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isInteractLocked, lockInteract, unlockInteract } from "./interaction";
 import { FullMapOverlay } from "./FullMapOverlay";
+import { TileWarmer } from "./livemap/TileWarmer";
+import { mapInteractingNow } from "./livemap/MapCanvas";
 import { HeartHud } from "./HeartHud";
 import { StatsWidget } from "./StatsWidget";
 import { RadarPanel } from "./RadarPanel";
@@ -22,6 +24,7 @@ import type {
 const DEFAULT_THEME: OverlayTheme = {
   accent: "#7cf2a6",
   stat: { health: "#ff5a5a", stamina: "#35d6a4", food: "#ffb454", water: "#5ab6ff" },
+  heart: "#e2fbff",
 };
 
 function applyTheme(t: OverlayTheme) {
@@ -400,7 +403,6 @@ function useMe(authed: boolean): PlayerMe | null {
 }
 
 const LIVE_RENDER_INTERVAL_MS = 50;
-const LIVE_STALE_MS = 4000;
 
 function useLive(authed: boolean): LiveFrame | null {
   const [live, setLive] = useState<LiveFrame | null>(null);
@@ -411,16 +413,20 @@ function useLive(authed: boolean): LiveFrame | null {
     }
     let pending: LiveFrame | null = null;
     let flushTimer: number | null = null;
-    let staleTimer: number | null = null;
     const flush = () => {
       flushTimer = null;
       if (!pending) return;
       const next = pending;
       pending = null;
       setLive(next);
-      if (staleTimer != null) window.clearTimeout(staleTimer);
-      staleTimer = window.setTimeout(() => setLive(null), LIVE_STALE_MS);
     };
+    // No stale-clears-to-null timeout here on purpose: a brief gap between
+    // live frames (a network hiccup, or this process itself getting starved
+    // of CPU for a moment by a demanding game) used to flash "NO SIGNAL" /
+    // blank stats and drop the last known position, even though the data
+    // was still perfectly good. Keep showing the last known frame until a
+    // genuinely new one arrives to replace it, instead of clearing on a
+    // timer.
     const off = window.isleOverlay.onLive((d) => {
       pending = d;
       if (flushTimer == null) flushTimer = window.setTimeout(flush, LIVE_RENDER_INTERVAL_MS);
@@ -428,7 +434,6 @@ function useLive(authed: boolean): LiveFrame | null {
     return () => {
       off();
       if (flushTimer != null) window.clearTimeout(flushTimer);
-      if (staleTimer != null) window.clearTimeout(staleTimer);
     };
   }, [authed]);
   return live;
@@ -485,6 +490,10 @@ export function App() {
   const [blocked, setBlocked] = useState(false);
   const [hudEditMode, setHudEditMode] = useState(false);
   const [fullMapOpen, setFullMapOpen] = useState(false);
+  const fullMapOpenRef = useRef(false);
+  useEffect(() => {
+    fullMapOpenRef.current = fullMapOpen;
+  }, [fullMapOpen]);
   const mounted = useRef(false);
   const language = settings?.language ?? "en";
   const t = (text: string) => tr(language, text);
@@ -492,6 +501,33 @@ export function App() {
   useEffect(() => {
     document.documentElement.lang = language;
   }, [language]);
+
+  // TEMP DIAGNOSTIC: repeated rounds of map-specific optimization (memoizing
+  // POI arrays, deferring labels/icons, viewport culling) haven't actually
+  // changed how laggy this feels, which means the working assumption — that
+  // the map's own rendering is what these long tasks are — was never
+  // actually verified, just inferred from two separate log lines landing
+  // close together in time. Logging whether the map is even open (and
+  // whether cursor/click-through mode is active) at the exact moment each
+  // long task fires settles that directly instead of continuing to guess.
+  // Remove alongside the other TEMP DIAGNOSTIC code once found.
+  useEffect(() => {
+    try {
+      const po = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          if (entry.duration >= 150) {
+            void window.isleOverlay.debugLog(
+              `[longtask] +${Math.round(entry.duration)}ms name=${entry.name} mapOpen=${fullMapOpenRef.current} mapInteracting=${mapInteractingNow} hidden=${document.hidden}`,
+            );
+          }
+        }
+      });
+      po.observe({ entryTypes: ["longtask"] });
+      return () => po.disconnect();
+    } catch {
+      return undefined;
+    }
+  }, []);
 
   useEffect(() => {
     const off = window.isleOverlay.onBlocked((b) => setBlocked(b));
@@ -504,7 +540,16 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    const off = window.isleOverlay.onFullMap(setFullMapOpen);
+    // TEMP DIAGNOSTIC: report back to the main process once this state
+    // change has actually been painted (two rAFs = after the browser's next
+    // compositor frame), so the full main-process-to-pixels time shows up in
+    // the `npm run dev` terminal. Remove alongside main.cjs's mapTimingLog.
+    const off = window.isleOverlay.onFullMap((open, t0) => {
+      setFullMapOpen(open);
+      if (typeof t0 === "number") {
+        requestAnimationFrame(() => requestAnimationFrame(() => void window.isleOverlay.debugMapPainted(t0)));
+      }
+    });
     return off;
   }, []);
 
@@ -541,7 +586,10 @@ export function App() {
     void window.isleOverlay.getState().then(setState);
     const offState = window.isleOverlay.onState(setState);
     const offAuth = window.isleOverlay.onAuthChanged(() => window.isleOverlay.getAuth().then(setAuth));
-    const offSettings = window.isleOverlay.onSettingsChanged((s) => setSettings(s));
+    const offSettings = window.isleOverlay.onSettingsChanged((s) => {
+      setSettings(s);
+      if (s.panels) setPanels((prev) => ({ ...prev, ...s.panels }));
+    });
     return () => {
       offState();
       offAuth();
@@ -623,7 +671,7 @@ export function App() {
           settings={settings}
           resizeLabel={t("Resize HUD")}
         >
-          <HeartHud me={view} />
+          <HeartHud me={view} color={theme.heart} />
         </DraggablePanel>
       ) : null}
 
@@ -641,6 +689,7 @@ export function App() {
         </DraggablePanel>
       ) : null}
 
+      <TileWarmer />
       <FullMapOverlay
         open={fullMapOpen}
         onClose={() => void window.isleOverlay.fullMap.toggle()}

@@ -115,6 +115,7 @@ const defaultTheme = {
     food: isHex(configuredStatTheme.food) ? configuredStatTheme.food : "#79f2a6",
     water: isHex(configuredStatTheme.water) ? configuredStatTheme.water : "#5ab6ff",
   },
+  heart: isHex(configuredTheme.heart) ? configuredTheme.heart : "#e2fbff",
 };
 
 const defaultSettings = {
@@ -188,6 +189,7 @@ const normalizeTheme = (t) => {
       food: isHex(st.food) ? st.food : defaultTheme.stat.food,
       water: isHex(st.water) ? st.water : defaultTheme.stat.water,
     },
+    heart: isHex(src.heart) ? src.heart : defaultTheme.heart,
   };
 };
 
@@ -398,9 +400,21 @@ const earlySettings = readRawSettings(SETTINGS_FILE())
   || readRawSettings(renamedSettingsFile)
   || readRawSettings(legacySettingsFile)
   || defaultSettings;
+// Chromium's native Windows occlusion detection assumes it can tell when a
+// window is genuinely covered and throttle its renderer to save resources.
+// For an always-on-top, transparent, frequently-refocused overlay sitting
+// directly over a fullscreen game, that heuristic misfires — measured as the
+// renderer's main thread stalling for 0.3-2.5s at a time, at irregular
+// intervals, even with the map fully closed and nothing to render. Raising
+// this process's OS priority didn't help (the sandboxed renderer process
+// refuses PROCESS_SET_INFORMATION from outside, confirmed via a failed
+// raiseProcessPriority call), so the fix is to stop Chromium from using this
+// detection at all rather than trying to out-schedule it. Unconditional
+// (not gated behind compatMode) because it targets exactly this overlay-
+// over-fullscreen-game scenario, not a general compatibility fallback.
+app.commandLine.appendSwitch("disable-features", "CalculateNativeWinOcclusion");
 if (earlySettings.compatMode === true) {
   app.commandLine.appendSwitch("disable-direct-composition");
-  app.commandLine.appendSwitch("disable-features", "CalculateNativeWinOcclusion");
 }
 
 function baseApi() {
@@ -444,7 +458,14 @@ const createWindow = () => {
       contextIsolation: true,
       nodeIntegration: false,
       devTools: false,
-      backgroundThrottling: true,
+      // Chromium throttles rAF/timers to ~1Hz on a page it decides is
+      // "backgrounded" (occlusion tracking). For a real-time always-on-top
+      // overlay sitting over a fullscreen game, that heuristic misfires
+      // intermittently — measured as random 400-500ms stalls between an
+      // M-press and the map actually painting, on both open AND close,
+      // which pointed at renderer-side timer throttling rather than
+      // anything specific to the map itself.
+      backgroundThrottling: false,
       preload: path.join(__dirname, "preload.cjs"),
     },
   });
@@ -452,6 +473,16 @@ const createWindow = () => {
   mainWindow.setAlwaysOnTop(true, "screen-saver");
   mainWindow.setIgnoreMouseEvents(true, { forward: true });
   mainWindow.setMenuBarVisibility(false);
+
+  // Bump this (main) process's own OS priority slightly — logged as
+  // confirmed working. Raising the renderer's own priority the same way was
+  // also tried, but Windows refused PROCESS_SET_INFORMATION on that process
+  // (Chromium sandboxes it), so that attempt was removed; the actual fix for
+  // the renderer-side stalls is disabling CalculateNativeWinOcclusion above.
+  try {
+    const n = loadNw();
+    if (n) n.raiseProcessPriority(process.pid);
+  } catch {}
 
   const distIndex = path.join(__dirname, "..", "dist", "index.html");
   const devUrl = process.env.VITE_DEV_SERVER_URL;
@@ -540,34 +571,59 @@ function menuSend(channel, data) {
   if (menuWindow && !menuWindow.isDestroyed()) menuWindow.webContents.send(channel, data);
 }
 
-function setCursor(on) {
+// TEMP DIAGNOSTIC: pinpointing a reported 3-5s stall between pressing M and
+// the map appearing. Also written to a log file (not just console.log) since
+// the packaged/installed build users actually test with has no attached
+// console to read stdout from. Remove once the stall is found.
+const mapTimingLogPath = path.join(app.getPath("userData"), "map-timing.log");
+function mapTimingLog(t0, label) {
+  const line = `[map-open-timing] ${new Date().toISOString()} ${label}: +${Date.now() - t0}ms`;
+  console.log(line);
+  try { fs.appendFileSync(mapTimingLogPath, line + "\n"); } catch {}
+}
+
+function setCursor(on, t0) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   cursorOn = on;
   mainWindow.setIgnoreMouseEvents(on ? false : true, { forward: true });
+  if (t0) mapTimingLog(t0, "setIgnoreMouseEvents done");
   if (on) {
     if (!mainWindow.isVisible()) mainWindow.showInactive();
+    if (t0) mapTimingLog(t0, "showInactive done");
     mainWindow.setAlwaysOnTop(true, "screen-saver");
+    if (t0) mapTimingLog(t0, "setAlwaysOnTop done");
     mainWindow.focus();
+    if (t0) mapTimingLog(t0, "mainWindow.focus done");
     try { app.focus({ steal: true }); } catch {}
+    if (t0) mapTimingLog(t0, "app.focus done");
     if (radarWindow && !radarWindow.isDestroyed()) {
       radarWindow.setAlwaysOnTop(true, "screen-saver", 2);
       radarWindow.moveTop();
     }
   } else {
-    try { mainWindow.blur(); } catch {}
+    // Focus the game window *before* blurring ours. Windows only allows a
+    // background process to steal the foreground if it currently owns it —
+    // blurring first drops our foreground ownership, so the SetForegroundWindow
+    // call below would silently fail and leave the desktop/nothing focused,
+    // forcing the player to click the game window by hand to resume playing.
+    let refocused = false;
     try {
       const n = loadNw();
-      if (gameHwnd && n) n.focusWindow(gameHwnd);
+      if (gameHwnd && n) refocused = Boolean(n.focusWindow(gameHwnd));
     } catch {}
+    if (!refocused) {
+      try { mainWindow.blur(); } catch {}
+    }
   }
   mainWindow.webContents.send("overlay:cursor", on);
+  if (t0) mapTimingLog(t0, "overlay:cursor IPC sent");
 }
 
 let hudEditMode = false;
 let fullMapOpen = false;
 
-function applyOverlayInteractive() {
-  setCursor(hudEditMode || fullMapOpen);
+function applyOverlayInteractive(t0) {
+  setCursor(hudEditMode || fullMapOpen, t0);
 }
 
 let menuWindow = null;
@@ -662,9 +718,12 @@ function refreshBranding(settings = readSettings()) {
 }
 
 function toggleFullMap() {
+  const t0 = Date.now();
+  mapTimingLog(t0, `toggleFullMap start (opening=${!fullMapOpen})`);
   fullMapOpen = !fullMapOpen;
-  applyOverlayInteractive();
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("fullMap:changed", fullMapOpen);
+  applyOverlayInteractive(t0);
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("fullMap:changed", fullMapOpen, t0);
+  mapTimingLog(t0, "fullMap:changed IPC sent");
 }
 
 // globalShortcut has no keyup event, so holding the key past the OS's key-repeat
@@ -853,15 +912,19 @@ function trackGame() {
     }
 
     const fg = n.GetForegroundWindow();
-    activeIsGame = Boolean(gameHwnd && fg && n.isSameWindow(fg, gameHwnd));
-    activeIsOverlay = Boolean(fg && !activeIsGame && n.windowPid(fg) === process.pid);
+    const fgPid = fg ? n.windowPid(fg) : 0;
+    const gamePid = gameHwnd ? n.windowPid(gameHwnd) : 0;
+    // Match by process, not just the exact HWND: some fullscreen/remote-session
+    // wrappers briefly hand foreground to a different top-level window of the
+    // same game process, which would otherwise look like focus left the game.
+    activeIsGame = Boolean(gameHwnd && fg && (n.isSameWindow(fg, gameHwnd) || (gamePid && fgPid === gamePid)));
+    activeIsOverlay = Boolean(fg && !activeIsGame && fgPid === process.pid);
   } catch {
   }
-  // The HUD belongs to the detected game window, not only to the current
-  // foreground HWND. Fullscreen/remote-session wrappers can own foreground
-  // briefly even while the game remains visible, which previously hid the HUD.
-  const shouldShow =
-    gameHwnd != null || activeIsOverlay || streamerModeActive || Date.now() < bootGraceUntil;
+  // Only show the HUD (and let the map hotkey act) while the game or the
+  // overlay itself is actually focused — not merely while the game process is
+  // still running in the background behind some other window.
+  const shouldShow = activeIsGame || activeIsOverlay || streamerModeActive || Date.now() < bootGraceUntil;
   overlayFocusActive = shouldShow;
 
   if (shouldShow) {
@@ -1307,6 +1370,15 @@ ipcMain.handle("overlay:mouseIgnore", (_e, ignore) => {
   }
 });
 ipcMain.handle("overlay:quit", () => app.quit());
+// TEMP DIAGNOSTIC: see mapTimingLog above.
+ipcMain.handle("debug:mapPainted", (_e, t0) => {
+  if (typeof t0 === "number") mapTimingLog(t0, "renderer painted (post-rAF)");
+});
+ipcMain.handle("debug:log", (_e, msg) => {
+  const line = `[renderer] ${new Date().toISOString()} ${String(msg)}`;
+  console.log(line);
+  try { fs.appendFileSync(mapTimingLogPath, line + "\n"); } catch {}
+});
 
 ipcMain.handle("radar:toggle", () => {
   if (radarWindow && !radarWindow.isDestroyed()) {

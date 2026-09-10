@@ -4,6 +4,7 @@ import type React from "react";
 import { MapCanvas, type MapFocus, type MapPlayerShape, type MapZoneShape } from "./livemap/MapCanvas";
 import type { MapCalibration } from "./livemap/calibration";
 import { ISLE_FOOD_SPAWNS } from "./livemap/isle-food-spawns";
+import { MAP_LAYER_PATH } from "./livemap/TileWarmer";
 import type { LiveFrame } from "./preload";
 
 type Category = { id: string; name: string; color: string };
@@ -21,7 +22,6 @@ type MapResp = {
   status?: number;
 };
 
-const MAP_LAYER_PATH = "maps/gateway-v0.21";
 const UNCAT = "__uncat__";
 const FOOD_COLORS = new Map(
   ISLE_FOOD_SPAWNS.map((f, i, a) => [f.type, `hsl(${Math.round((i * 360) / a.length)} 70% 55%)`]),
@@ -32,9 +32,8 @@ const FOOD_COLORS = new Map(
 // state update per LIVE_RENDER_INTERVAL_MS instead of one per frame, same
 // as the overlay/menu window's own live-position consumers.
 const LIVE_RENDER_INTERVAL_MS = 50;
-const LIVE_STALE_MS = 4000;
 
-export function LiveMapTab({ authed, onLogin }: { authed: boolean; onLogin: () => void }) {
+export function LiveMapTab({ authed, onLogin, open }: { authed: boolean; onLogin: () => void; open?: boolean }) {
   const [data, setData] = useState<MapResp | null>(null);
   const [loading, setLoading] = useState(true);
   const [base, setBase] = useState("https://islepilot.eu");
@@ -43,25 +42,34 @@ export function LiveMapTab({ authed, onLogin }: { authed: boolean; onLogin: () =
   const [hiddenCats, setHiddenCats] = useState<Set<string>>(new Set());
   const [placesOpen, setPlacesOpen] = useState(true);
   const [focus, setFocus] = useState<MapFocus | null>(null);
+  const [mapWrapEl, setMapWrapEl] = useState<HTMLDivElement | null>(null);
+  const [mapBox, setMapBox] = useState(320);
+
+  // Size the map as the largest square that fits the available area instead
+  // of always going full-width: full-width forced the panel taller than the
+  // modal, which is what produced the vertical scrollbar.
+  //
+  // This uses a callback ref (mapWrapEl state) rather than useRef + a mount-
+  // only effect: the wrapper div only exists once past the "Sign in" /
+  // "Loading map…" / error early-returns below, which happens on a LATER
+  // render than the component's first mount. A `useEffect(fn, [])` reading
+  // `ref.current` would have run before that div ever existed, found it
+  // null, and then never run again — permanently stuck observing nothing,
+  // which is why the map kept rendering at the 320px fallback default.
+  useEffect(() => {
+    if (!mapWrapEl) return;
+    const ro = new ResizeObserver(() => {
+      setMapBox(Math.max(120, Math.floor(Math.min(mapWrapEl.clientWidth, mapWrapEl.clientHeight))));
+    });
+    ro.observe(mapWrapEl);
+    return () => ro.disconnect();
+  }, [mapWrapEl]);
 
   useEffect(() => {
     window.isleOverlay.getSettings().then((s) => {
       if (s.apiBaseUrl) setBase(s.apiBaseUrl.replace(/\/+$/, ""));
     });
   }, []);
-
-  // This tab is mounted (just visually hidden) as soon as the menu window
-  // opens, well before the user ever clicks "Live Map". Decoding the map
-  // tiles here warms the renderer's image cache in the background, so the
-  // first real switch to this tab doesn't pay a one-time decode/layout
-  // freeze for images the browser never had to paint until now.
-  useEffect(() => {
-    for (const name of ["base", "water", "land"]) {
-      const img = new Image();
-      img.src = `${base}/${MAP_LAYER_PATH}/${name}.webp`;
-      void img.decode?.().catch(() => {});
-    }
-  }, [base]);
 
   const refresh = useCallback(async () => {
     const r = await window.isleOverlay.apiGet<MapResp>("/api/overlay/map");
@@ -82,16 +90,16 @@ export function LiveMapTab({ authed, onLogin }: { authed: boolean; onLogin: () =
   useEffect(() => {
     let pending: LiveFrame | null = null;
     let flushTimer: number | null = null;
-    let staleTimer: number | null = null;
     const flush = () => {
       flushTimer = null;
       if (!pending) return;
       const next = pending;
       pending = null;
       setLive(next);
-      if (staleTimer != null) window.clearTimeout(staleTimer);
-      staleTimer = window.setTimeout(() => setLive(null), LIVE_STALE_MS);
     };
+    // No stale-clears-to-null timeout on purpose — a brief gap between live
+    // frames shouldn't flash "offline" and drop the last known position/
+    // trail. See App.tsx's useLive for the full reasoning.
     const off = window.isleOverlay.onLive((d) => {
       pending = d;
       if (flushTimer == null) flushTimer = window.setTimeout(flush, LIVE_RENDER_INTERVAL_MS);
@@ -99,7 +107,6 @@ export function LiveMapTab({ authed, onLogin }: { authed: boolean; onLogin: () =
     return () => {
       off();
       if (flushTimer != null) window.clearTimeout(flushTimer);
-      if (staleTimer != null) window.clearTimeout(staleTimer);
     };
   }, []);
 
@@ -120,6 +127,24 @@ export function LiveMapTab({ authed, onLogin }: { authed: boolean; onLogin: () =
     }
     return server;
   }, [data?.markers, live]);
+
+  // MapCanvas's zone/player layer is wrapped in React.memo keyed on these
+  // arrays' identity — computing them inline on every render (as before)
+  // handed it a brand-new array every ~50ms live-position tick even when
+  // nothing about the zones actually changed, defeating the memo and forcing
+  // a full re-render of every place marker continuously, not just while
+  // actually zooming/panning.
+  const visiblePois = useMemo(
+    () => (data?.pois ?? []).filter((p) => !hiddenCats.has(p.categoryId ?? UNCAT)),
+    [data?.pois, hiddenCats],
+  );
+  const food = useMemo(
+    () =>
+      showFood && data?.foodSpawnsEnabled
+        ? ISLE_FOOD_SPAWNS.map((f) => ({ label: f.type, color: FOOD_COLORS.get(f.type) ?? "#f59e0b", points: f.points }))
+        : [],
+    [showFood, data?.foodSpawnsEnabled],
+  );
 
   const layerBase = `${base}/${MAP_LAYER_PATH}`;
 
@@ -164,10 +189,6 @@ export function LiveMapTab({ authed, onLogin }: { authed: boolean; onLogin: () =
 
   const calibration = data?.calibration ?? null;
   const categories = data?.categories ?? [];
-  const visiblePois = (data?.pois ?? []).filter((p) => !hiddenCats.has(p.categoryId ?? UNCAT));
-  const food = showFood && data?.foodSpawnsEnabled
-    ? ISLE_FOOD_SPAWNS.map((f) => ({ label: f.type, color: FOOD_COLORS.get(f.type) ?? "#f59e0b", points: f.points }))
-    : [];
 
   const byCat = new Map<string, MapZoneShape[]>();
   for (const p of data?.pois ?? []) {
@@ -198,7 +219,7 @@ export function LiveMapTab({ authed, onLogin }: { authed: boolean; onLogin: () =
   const friendCount = (data?.markers ?? []).filter((m) => !m.self).length;
 
   return (
-    <div className="interactive-region" style={{ position: "relative", paddingTop: 14 }}>
+    <div className="interactive-region" style={{ position: "relative", paddingTop: 14, flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" }}>
       <div style={hdr}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
           <span style={mapBadge}>
@@ -226,10 +247,11 @@ export function LiveMapTab({ authed, onLogin }: { authed: boolean; onLogin: () =
         </div>
       )}
 
-      <div style={{ position: "relative" }}>
-        <MapCanvas layerBase={layerBase} calibration={calibration} zones={visiblePois} players={players} food={food} focus={focus} />
+      <div ref={setMapWrapEl} style={{ position: "relative", flex: "1 1 auto", minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ position: "relative", width: mapBox, height: mapBox }}>
+          <MapCanvas layerBase={layerBase} calibration={calibration} zones={visiblePois} players={players} food={food} focus={focus} open={open} />
 
-        <div style={{ position: "absolute", left: 10, top: 10, width: 176 }}>
+          <div style={{ position: "absolute", left: 10, top: 10, width: 176 }}>
           {placesOpen ? (
             <div style={mapPanel}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 9px" }}>
@@ -268,6 +290,7 @@ export function LiveMapTab({ authed, onLogin }: { authed: boolean; onLogin: () =
           ) : (
             <button className="lmChip" onClick={() => setPlacesOpen(true)}>Places</button>
           )}
+          </div>
         </div>
       </div>
 

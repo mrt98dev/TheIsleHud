@@ -11,18 +11,43 @@ import { useEffect, useState } from "react";
 const inflight = new Map<string, Promise<string | null>>();
 const resolved = new Map<string, string | null>();
 
+// Opening the map can ask for 60+ icons at once (one per POI). Each IPC
+// reply carries a base64 data URL, and letting every request land — and
+// every consuming <image> decode — in the same tick/frame is exactly the
+// kind of burst that shows up as a long, janky main-thread task right after
+// the map opens. Capping how many are in flight at once spreads that work
+// out over several frames instead of one spike.
+const MAX_CONCURRENT_ICON_LOADS = 4;
+let activeIconLoads = 0;
+const iconQueue: (() => void)[] = [];
+
+function runNextIconLoad() {
+  if (activeIconLoads >= MAX_CONCURRENT_ICON_LOADS) return;
+  const job = iconQueue.shift();
+  if (!job) return;
+  activeIconLoads++;
+  job();
+}
+
 function loadIcon(url: string): Promise<string | null> {
   const existing = inflight.get(url);
   if (existing) return existing;
-  const p = window.isleOverlay
-    .iconGet(url)
-    .then((r) => r.dataUrl ?? null)
-    .catch(() => null)
-    .then((src) => {
-      resolved.set(url, src);
-      inflight.delete(url);
-      return src;
+  const p = new Promise<string | null>((resolve) => {
+    iconQueue.push(() => {
+      window.isleOverlay
+        .iconGet(url)
+        .then((r) => r.dataUrl ?? null)
+        .catch(() => null)
+        .then((src) => {
+          resolved.set(url, src);
+          inflight.delete(url);
+          activeIconLoads--;
+          runNextIconLoad();
+          resolve(src);
+        });
     });
+    runNextIconLoad();
+  });
   inflight.set(url, p);
   return p;
 }

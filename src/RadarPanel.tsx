@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { MapPlayerShape, MapZoneShape } from "./livemap/MapCanvas";
 import { worldToNormalized, type MapCalibration } from "./livemap/calibration";
 import { isTrackedPlace, type MapTrackingSettings } from "./map-tracking";
-import { RadarView, type RadarMarker, type RadarShape } from "./RadarView";
+import { RadarView, type RadarMarker, type RadarShape, type RadarZone } from "./RadarView";
 import type { LiveFrame } from "./preload";
 
 type MapResp = {
@@ -71,12 +71,22 @@ export function RadarPanel({
     return (Math.atan2(ahead.v - selfUV.v, ahead.u - selfUV.u) * 180) / Math.PI;
   }, [cal, live, selfUV]);
 
+  const selfTrail = useMemo(() => {
+    if (!cal) return null;
+    const self = data?.markers?.find((m) => m.self);
+    if (!self?.path || self.path.length < 2) return null;
+    return self.path.map((q) => worldToNormalized(cal, q.x, q.y));
+  }, [cal, data]);
+
   const markers = useMemo<RadarMarker[]>(() => {
     if (!cal) return [];
     const out: RadarMarker[] = [];
     const categoryNames = new Map((data?.categories ?? []).map((category) => [category.id, category.name]));
     for (const p of data?.pois ?? []) {
       if (!isTrackedPlace(p, tracking, p.categoryId ? categoryNames.get(p.categoryId) : "")) continue;
+      // Polygon zones are drawn as filled areas (see zonePolygons below) unless
+      // they also carry an icon, matching the full map's behaviour.
+      if (p.shape === "polygon" && !p.icon) continue;
       const uv = centroidUV(cal, p.points);
       if (uv) out.push({ id: p.id, u: uv.u, v: uv.v, label: p.name, color: p.color, kind: "place", shape: p.shape, icon: p.icon });
     }
@@ -84,6 +94,18 @@ export function RadarPanel({
       if (m.self) continue;
       const uv = worldToNormalized(cal, m.x, m.y);
       out.push({ id: m.steamId, u: uv.u, v: uv.v, label: m.label, color: "#7cf2a6", kind: "friend" });
+    }
+    return out;
+  }, [cal, data, tracking]);
+
+  const zonePolygons = useMemo<RadarZone[]>(() => {
+    if (!cal) return [];
+    const out: RadarZone[] = [];
+    const categoryNames = new Map((data?.categories ?? []).map((category) => [category.id, category.name]));
+    for (const p of data?.pois ?? []) {
+      if (p.shape !== "polygon" || p.points.length < 3) continue;
+      if (!isTrackedPlace(p, tracking, p.categoryId ? categoryNames.get(p.categoryId) : "")) continue;
+      out.push({ id: p.id, color: p.color, enabled: p.enabled, points: p.points.map((q) => worldToNormalized(cal, q.x, q.y)) });
     }
     return out;
   }, [cal, data, tracking]);
@@ -99,6 +121,8 @@ export function RadarPanel({
         rangeUV={RANGE_UV[rangeIdx]}
         rangeLabel={RANGE_LABEL[rangeIdx]}
         markers={markers}
+        zones={zonePolygons}
+        trail={selfTrail}
         showLabels={showLabels}
         shape={shape}
       />

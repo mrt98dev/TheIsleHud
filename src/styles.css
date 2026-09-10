@@ -436,26 +436,9 @@ body {
   gap: 8px;
 }
 
-.settingsBackdrop {
-  position: fixed;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: rgba(4, 8, 6, 0.55);
-  backdrop-filter: blur(3px);
-  z-index: 60;
-}
-.settingsFrame {
-  width: min(700px, calc(100vw - 48px));
-  height: min(480px, calc(100vh - 64px));
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
 .settingsLayout {
   display: flex;
-  flex: 1 1 auto;
-  min-height: 0;
+  min-height: 100%;
 }
 .settingsRail {
   display: flex;
@@ -489,9 +472,6 @@ body {
 .settingsContent {
   flex: 1 1 auto;
   min-width: 0;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
   padding: 14px 18px;
   display: flex;
   flex-direction: column;
@@ -500,16 +480,6 @@ body {
 }
 .settingsContent .range {
   width: 100%;
-}
-.settingsContent::-webkit-scrollbar {
-  width: 8px;
-}
-.settingsContent::-webkit-scrollbar-thumb {
-  background: var(--edge);
-  border-radius: 8px;
-}
-.settingsContent::-webkit-scrollbar-track {
-  background: transparent;
 }
 
 .ok {
@@ -1068,6 +1038,11 @@ body {
   border-left-color: var(--phos);
   background: rgba(124, 242, 166, 0.08);
   text-shadow: 0 0 12px var(--phos-dim);
+}
+.tabSettings {
+  margin-top: auto;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
 }
 .tab span {
   overflow: hidden;
@@ -1652,12 +1627,12 @@ body {
   fill: rgba(150, 235, 255, 0.16);
 }
 .heartFill {
-  fill: #e2fbff;
+  fill: var(--heart-color, #e2fbff);
   transition: y 0.45s ease;
 }
 .heartLine {
   fill: none;
-  stroke: #a9eeff;
+  stroke: var(--heart-color, #a9eeff);
   stroke-width: 1.4;
   stroke-linejoin: round;
 }
@@ -2304,13 +2279,20 @@ body {
   inset: 0;
   display: grid;
   place-items: center;
-  background: rgba(4, 8, 6, 0.6);
-  backdrop-filter: blur(3px);
+  /* A full-viewport backdrop-filter blur is expensive to (re)composite on a
+     transparent, layered overlay window and was adding a visible stall each
+     time the map opened, so a plain darker scrim is used instead. */
+  background: rgba(4, 8, 6, 0.78);
   z-index: 70;
 }
 .fullMapPanel {
-  width: 90vw;
-  height: 90vh;
+  position: relative;
+  /* The map itself is square (1:1 world), so a wide 90vw x 90vh rectangle
+     left a lot of dead space beside a comparatively tiny square map. Sizing
+     the panel itself to the largest square that fits the viewport keeps the
+     map filling almost the whole modal. */
+  width: min(90vw, 90vh);
+  height: min(90vw, 90vh);
   display: flex;
   flex-direction: column;
   background: linear-gradient(180deg, var(--panel-2), var(--panel));
@@ -2319,9 +2301,30 @@ body {
   box-shadow: var(--shadow);
   overflow: hidden;
 }
+.fullMapClose {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 10;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(10, 15, 12, 0.9);
+  color: var(--muted);
+  cursor: pointer;
+}
+.fullMapClose:hover {
+  border-color: var(--edge);
+  color: var(--phos);
+}
 .fullMapBody {
   flex: 1 1 auto;
   min-height: 0;
-  overflow-y: auto;
+  overflow: hidden;
   padding: 14px;
+  display: flex;
+  flex-direction: column;
 }

@@ -4,7 +4,7 @@ import type React from "react";
 import type { MapPlayerShape, MapZoneShape } from "./livemap/MapCanvas";
 import { worldToNormalized, type MapCalibration } from "./livemap/calibration";
 import { DEFAULT_MAP_TRACKING, isTrackedPlace, type MapTrackingSettings } from "./map-tracking";
-import { RadarView, type RadarMarker, type RadarShape } from "./RadarView";
+import { RadarView, type RadarMarker, type RadarShape, type RadarZone } from "./RadarView";
 import type { LiveFrame } from "./preload";
 
 type MapResp = {
@@ -25,7 +25,6 @@ const RANGE_LABEL = ["CLOSE", "MID", "FAR", "MAX"];
 // Batch them to one state update per LIVE_RENDER_INTERVAL_MS instead of one
 // per frame, same as the overlay's own live-position consumer.
 const LIVE_RENDER_INTERVAL_MS = 50;
-const LIVE_STALE_MS = 4000;
 
 function centroidUV(cal: MapCalibration, points: { x: number; y: number }[]): { u: number; v: number } | null {
   if (!points.length) return null;
@@ -80,16 +79,16 @@ export function RadarWindow() {
   useEffect(() => {
     let pending: LiveFrame | null = null;
     let flushTimer: number | null = null;
-    let staleTimer: number | null = null;
     const flush = () => {
       flushTimer = null;
       if (!pending) return;
       const next = pending;
       pending = null;
       setLive(next);
-      if (staleTimer != null) window.clearTimeout(staleTimer);
-      staleTimer = window.setTimeout(() => setLive(null), LIVE_STALE_MS);
     };
+    // No stale-clears-to-null timeout on purpose — a brief gap between live
+    // frames shouldn't flash "NO SIGNAL" and drop the last known position.
+    // See App.tsx's useLive for the full reasoning.
     const off = window.isleOverlay.onLive((d) => {
       pending = d;
       if (flushTimer == null) flushTimer = window.setTimeout(flush, LIVE_RENDER_INTERVAL_MS);
@@ -97,7 +96,6 @@ export function RadarWindow() {
     return () => {
       off();
       if (flushTimer != null) window.clearTimeout(flushTimer);
-      if (staleTimer != null) window.clearTimeout(staleTimer);
     };
   }, []);
 
@@ -129,6 +127,9 @@ export function RadarWindow() {
     const categoryNames = new Map((data?.categories ?? []).map((category) => [category.id, category.name]));
     for (const p of data?.pois ?? []) {
       if (!isTrackedPlace(p, tracking, p.categoryId ? categoryNames.get(p.categoryId) : "")) continue;
+      // Polygon zones are drawn as filled areas (see zonePolygons below) unless
+      // they also carry an icon, matching the full map's behaviour.
+      if (p.shape === "polygon" && !p.icon) continue;
       const uv = centroidUV(cal, p.points);
       if (uv) out.push({ id: p.id, u: uv.u, v: uv.v, label: p.name, color: p.color, kind: "place", shape: p.shape, icon: p.icon });
     }
@@ -139,6 +140,25 @@ export function RadarWindow() {
     }
     return out;
   }, [cal, data, tracking]);
+
+  const zonePolygons = useMemo<RadarZone[]>(() => {
+    if (!cal) return [];
+    const out: RadarZone[] = [];
+    const categoryNames = new Map((data?.categories ?? []).map((category) => [category.id, category.name]));
+    for (const p of data?.pois ?? []) {
+      if (p.shape !== "polygon" || p.points.length < 3) continue;
+      if (!isTrackedPlace(p, tracking, p.categoryId ? categoryNames.get(p.categoryId) : "")) continue;
+      out.push({ id: p.id, color: p.color, enabled: p.enabled, points: p.points.map((q) => worldToNormalized(cal, q.x, q.y)) });
+    }
+    return out;
+  }, [cal, data, tracking]);
+
+  const selfTrail = useMemo(() => {
+    if (!cal) return null;
+    const self = data?.markers?.find((m) => m.self);
+    if (!self?.path || self.path.length < 2) return null;
+    return self.path.map((q) => worldToNormalized(cal, q.x, q.y));
+  }, [cal, data]);
 
   const layerBase = `${base}/maps/gateway-v0.21`;
   const diameter = Math.max(120, Math.min(size.w, size.h) - 2);
@@ -183,6 +203,8 @@ export function RadarWindow() {
           rangeUV={RANGE_UV[rangeIdx]}
           rangeLabel={RANGE_LABEL[rangeIdx]}
           markers={markers}
+          zones={zonePolygons}
+          trail={selfTrail}
           showLabels={showLabels}
           shape={shape}
         />

@@ -1,6 +1,7 @@
 export type OverlayTheme = {
   accent: string;
   stat: { health: string; stamina: string; food: string; water: string };
+  heart: string;
 };
 
 export type MapTrackingSettings = {
@@ -221,7 +222,10 @@ export type IsleOverlayBridge = {
   fullMap: {
     toggle: () => Promise<void>;
   };
-  onFullMap: (cb: (open: boolean) => void) => () => void;
+  onFullMap: (cb: (open: boolean, t0?: number) => void) => () => void;
+  // TEMP DIAGNOSTIC — see preload.cjs.
+  debugMapPainted: (t0: number) => Promise<void>;
+  debugLog: (msg: string) => Promise<void>;
   updaterRestart: () => Promise<boolean>;
   updaterCheck: () => Promise<boolean>;
   updaterGetState: () => Promise<UpdaterState>;

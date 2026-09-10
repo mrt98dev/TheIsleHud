@@ -13,6 +13,13 @@ export type RadarMarker = {
   icon?: string | null;
 };
 
+export type RadarZone = {
+  id: string;
+  color: string;
+  enabled?: boolean;
+  points: { u: number; v: number }[];
+};
+
 export type RadarShape = "circle" | "square";
 
 function MarkerIcon({
@@ -64,6 +71,8 @@ export function RadarView({
   rangeUV,
   rangeLabel,
   markers,
+  zones,
+  trail,
   showLabels,
   shape,
 }: {
@@ -75,6 +84,8 @@ export function RadarView({
   rangeUV: number;
   rangeLabel: string;
   markers: RadarMarker[];
+  zones?: RadarZone[];
+  trail?: { u: number; v: number }[] | null;
   showLabels: boolean;
   shape: RadarShape;
 }) {
@@ -157,6 +168,28 @@ export function RadarView({
             })}
         <line x1={cx} y1={cy - R} x2={cx} y2={cy + R} stroke="rgba(124,242,166,0.07)" strokeWidth={1} />
         <line x1={cx - R} y1={cy} x2={cx + R} y2={cy} stroke="rgba(124,242,166,0.07)" strokeWidth={1} />
+
+        {(zones ?? []).map((z) => (
+          <polygon
+            key={z.id}
+            points={z.points.map((p) => `${originX + p.u * mapSize},${originY + p.v * mapSize}`).join(" ")}
+            fill={z.color}
+            fillOpacity={z.enabled === false ? 0.12 : 0.28}
+            stroke={z.color}
+            strokeWidth={1.4}
+            strokeOpacity={z.enabled === false ? 0.35 : 0.75}
+          />
+        ))}
+
+        {trail && trail.length > 1 ? (
+          <polyline
+            points={trail.map((p) => `${originX + p.u * mapSize},${originY + p.v * mapSize}`).join(" ")}
+            fill="none"
+            stroke="#f59e0b"
+            strokeWidth={2}
+            strokeOpacity={0.7}
+          />
+        ) : null}
 
         {shown.map(({ m, x, y }) => {
           const r = m.kind === "friend" ? 5 : 4.5;
