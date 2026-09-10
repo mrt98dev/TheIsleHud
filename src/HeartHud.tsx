@@ -6,13 +6,17 @@ const HEART_D =
 const HEART_TOP = 20;
 const HEART_BOTTOM = 68;
 
-export function HeartHud({ me }: { me: PlayerMe | null }) {
+export function HeartHud({ me, color }: { me: PlayerMe | null; color: string }) {
   const v = typeof me?.health === "number" ? me.health : null;
   const m = typeof me?.maxHealth === "number" && me.maxHealth > 0 ? me.maxHealth : null;
   const pct = v != null && m != null ? Math.max(0, Math.min(1, v / m)) : 0;
   const fillY = HEART_BOTTOM - pct * (HEART_BOTTOM - HEART_TOP);
   return (
-    <div className="heartHud dragHandle" title={`Health ${Math.round(pct * 100)}%`}>
+    <div
+      className="heartHud dragHandle"
+      style={{ ["--heart-color" as string]: color }}
+      title={`Health ${Math.round(pct * 100)}%`}
+    >
       <svg viewBox="0 0 100 88" aria-hidden="true">
         <defs>
           <clipPath id="heartClip">

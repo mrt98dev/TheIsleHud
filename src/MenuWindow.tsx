@@ -3,7 +3,6 @@ import { AdminTab } from "./AdminTab";
 import { ColorSwatch } from "./ColorPicker";
 import { DinoShopTab } from "./DinoShopTab";
 import { GarageTab } from "./GarageTab";
-import { LiveMapTab } from "./LiveMapTab";
 import { MapEditorTab } from "./MapEditorTab";
 import { SkinEditorTab } from "./SkinEditorTab";
 import { SkinShopTab } from "./SkinShopTab";
@@ -26,11 +25,13 @@ import type {
 const DEFAULT_THEME: OverlayTheme = {
   accent: "#7cf2a6",
   stat: { health: "#ff5a5a", stamina: "#35d6a4", food: "#ffb454", water: "#5ab6ff" },
+  heart: "#e2fbff",
 };
 
 const VN_HUD_THEME: OverlayTheme = {
   accent: "#ff7a3c",
   stat: { health: "#ff5148", stamina: "#ffb638", food: "#8bd44f", water: "#49b6ff" },
+  heart: "#e2fbff",
 };
 
 function applyTheme(t: OverlayTheme) {
@@ -72,11 +73,18 @@ function BootScreen({ onDone, serverName, overlayLabel }: { onDone: () => void; 
   );
 }
 
-export type TabKey = "profile" | "livemap" | "skin" | "garage" | "mapedit" | "dinoshop" | "skinshop" | "admin";
+export type TabKey =
+  | "profile"
+  | "skin"
+  | "garage"
+  | "mapedit"
+  | "dinoshop"
+  | "skinshop"
+  | "admin"
+  | "settings";
 
 const TABS: { key: TabKey; label: string; ready?: boolean }[] = [
   { key: "profile", label: "Dashboard", ready: true },
-  { key: "livemap", label: "Live Map", ready: true },
   { key: "skin", label: "Skin Editor", ready: true },
   { key: "garage", label: "Garage", ready: true },
   { key: "dinoshop", label: "Dino Shop", ready: true },
@@ -90,13 +98,6 @@ const TAB_ICONS: Record<TabKey, ReactNode> = {
     <>
       <circle cx="12" cy="7" r="4" />
       <path d="M5.5 21a6.5 6.5 0 0 1 13 0" />
-    </>
-  ),
-  livemap: (
-    <>
-      <path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3z" />
-      <path d="M9 3v15" />
-      <path d="M15 6v15" />
     </>
   ),
   skin: (
@@ -138,6 +139,12 @@ const TAB_ICONS: Record<TabKey, ReactNode> = {
     <>
       <path d="M12 2 4 5v6c0 4.4 3.1 8.1 8 9 4.9-.9 8-4.6 8-9V5l-8-3Z" />
       <path d="M9 11.5 11 13.5 15 9.5" />
+    </>
+  ),
+  settings: (
+    <>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
     </>
   ),
 };
@@ -353,9 +360,6 @@ function DashboardTab({
 
       <div className="sectionHead">{t("Add-ons")}</div>
       <div className="addons">
-        <button className="addon" onClick={() => onGoto("livemap")}>
-          <TabIcon name="livemap" /> {t("Live Map")}
-        </button>
         <button className="addon" onClick={() => onGoto("skin")}>
           <TabIcon name="skin" /> {t("Skin Editor")}
         </button>
@@ -363,15 +367,6 @@ function DashboardTab({
     </div>
   );
 }
-
-const PANELS: { key: string; label: string; soon?: boolean }[] = [
-  { key: "server", label: "Server info" },
-  { key: "compass", label: "Compass" },
-  { key: "stats", label: "Stats" },
-  { key: "prime", label: "PRIME" },
-  { key: "heart", label: "HP Heart" },
-  { key: "radar", label: "Radar" },
-];
 
 const TRACKING_OPTIONS: Array<{ key: MapTrackingKey; label: string; color: string }> = [
   { key: "sanctuaries", label: "Sanctuaries", color: "#79f2a6" },
@@ -394,7 +389,7 @@ function ColorRow({ label, value, onChange }: { label: string; value: string; on
   );
 }
 
-function SettingsPanel({
+function SettingsTab({
   settings,
   theme,
   panels,
@@ -406,7 +401,6 @@ function SettingsPanel({
   onTogglePanel,
   onLogout,
   onQuit,
-  onClose,
 }: {
   settings: OverlaySettings | null;
   theme: OverlayTheme;
@@ -419,7 +413,6 @@ function SettingsPanel({
   onTogglePanel: (k: string) => void;
   onLogout: () => void;
   onQuit: () => void;
-  onClose: () => void;
 }) {
   const setStat = (k: keyof OverlayTheme["stat"], v: string) =>
     onTheme({ ...theme, stat: { ...theme.stat, [k]: v } });
@@ -453,14 +446,18 @@ function SettingsPanel({
     if (k) setMapKey(k);
   }
   const SETTINGS_CATS = [
-    { key: "widgets", label: "Widgets" },
+    ...(settings?.serverInfoEnabled ? [{ key: "server", label: "Server info" }] : []),
+    { key: "compass", label: "Compass" },
+    { key: "stats", label: "Stats" },
+    { key: "prime", label: "PRIME" },
+    { key: "heart", label: "HP Heart" },
     { key: "radar", label: "Radar" },
     { key: "controls", label: "Controls" },
     { key: "streaming", label: "Streaming" },
     { key: "appearance", label: "Appearance" },
     { key: "account", label: "Account" },
   ];
-  const [cat, setCat] = useState("widgets");
+  const [cat, setCat] = useState(() => (settings?.serverInfoEnabled ? "server" : "compass"));
   const [streamerMode, setStreamerMode] = useState(settings?.streamerMode ?? false);
   const [compatMode, setCompatMode] = useState(settings?.compatMode ?? false);
   const [language, setLanguage] = useState<AppLanguage>(settings?.language ?? "en");
@@ -481,57 +478,128 @@ function SettingsPanel({
   useEffect(() => window.isleOverlay.onHudEdit(setHudEditMode), []);
 
   return (
-    <div className="settingsBackdrop interactive-region" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="frame settingsFrame">
-        <div className="frameBar">
-          <span className="dot" />
-          <span className="ttl">{t("Settings").toUpperCase()}</span>
-          <button className="xbtn" onClick={onClose}>✕</button>
-        </div>
-        <div className="settingsLayout">
-          <div className="settingsRail">
-            {SETTINGS_CATS.map((c) => (
-              <button
-                key={c.key}
-                className={`settingsRailBtn ${cat === c.key ? "on" : ""}`}
-                onClick={() => setCat(c.key)}
-              >
-                {t(c.label)}
-              </button>
-            ))}
-          </div>
-          <div className="settingsContent">
-          {cat === "widgets" && (<>
-          <div className="secLabel">{t("Detached widgets")}</div>
-          <div className="hint">{t("Enable widgets, drag them anywhere, and resize them from the bottom-right corner.")}</div>
-
-          <div className="secLabel">{t("Edit HUD layout")}</div>
-          <div className="hint">{t("Turn this on to drag and resize overlay widgets in-game; turn it off to click through the overlay again.")}</div>
-          {!gameDetected ? (
-            <div className="hint">{t("Requires The Isle to be running.")}</div>
-          ) : null}
+    <div className="settingsLayout">
+      <div className="settingsRail">
+        {SETTINGS_CATS.map((c) => (
+          <button
+            key={c.key}
+            className={`settingsRailBtn ${cat === c.key ? "on" : ""}`}
+            onClick={() => setCat(c.key)}
+          >
+            {t(c.label)}
+          </button>
+        ))}
+      </div>
+      <div className="settingsContent">
+      {cat === "server" && (<>
+          <div className="secLabel">{t("Server info")}</div>
+          <div className="hint">{t("Shows server name and player count on the HUD.")}</div>
           <div className="featRow">
-            <button
-              className={`chip ${hudEditMode ? "on" : ""}`}
-              disabled={!gameDetected}
-              onClick={() => void window.isleOverlay.hudEdit.set(!hudEditMode)}
-            >
-              {hudEditMode ? "ON" : "OFF"}
+            <button className={`chip ${panels.server ? "on" : ""}`} onClick={() => onTogglePanel("server")}>
+              {panels.server ? "ON" : "OFF"}
+            </button>
+          </div>
+          </>)}
+          {cat === "compass" && (<>
+          <div className="secLabel">{t("Compass")}</div>
+          <div className="hint">{t("Shows a compass pointing to tracked map items.")}</div>
+          <div className="featRow">
+            <button className={`chip ${panels.compass ? "on" : ""}`} onClick={() => onTogglePanel("compass")}>
+              {panels.compass ? "ON" : "OFF"}
             </button>
           </div>
 
-          <div className="featRow">
-            {PANELS.filter((p) => p.key !== "server" || settings?.serverInfoEnabled).map((p) => (
+          <div className="secLabel">{t("Tracked map items")}</div>
+          <div className="hint">{t("These filters are shared by the radar and compass.")}</div>
+          <div className="trackingGrid">
+            <button
+              type="button"
+              className={`trackingChip ${Object.values(mapTracking).every(Boolean) ? "on" : ""}`}
+              aria-pressed={Object.values(mapTracking).every(Boolean)}
+              onClick={() => {
+                const enabled = !Object.values(mapTracking).every(Boolean);
+                const next = Object.fromEntries(
+                  TRACKING_OPTIONS.map((option) => [option.key, enabled]),
+                ) as MapTrackingSettings;
+                setMapTracking(next);
+                void window.isleOverlay.setSettings({ mapTracking: next });
+              }}
+            >
+              <span className="trackingCheck" aria-hidden="true" />
+              <span>{t("All items")}</span>
+            </button>
+            {TRACKING_OPTIONS.map((option) => (
               <button
-                key={p.key}
-                className={`chip ${panels[p.key] ? "on" : ""}`}
-                onClick={() => onTogglePanel(p.key)}
+                key={option.key}
+                type="button"
+                className={`trackingChip ${mapTracking[option.key] ? "on" : ""}`}
+                aria-pressed={mapTracking[option.key]}
+                style={{ ["--track-color" as string]: option.color }}
+                onClick={() => {
+                  const next = { ...mapTracking, [option.key]: !mapTracking[option.key] };
+                  setMapTracking(next);
+                  void window.isleOverlay.setSettings({ mapTracking: next });
+                }}
               >
-                {t(p.label).toUpperCase()}
+                <span className="trackingCheck" aria-hidden="true" />
+                <span>{t(option.label)}</span>
+              </button>
+            ))}
+          </div>
+          </>)}
+          {cat === "stats" && (<>
+          <div className="secLabel">{t("Stats")}</div>
+          <div className="hint">{t("Shows health, stamina, hunger and thirst.")}</div>
+          <div className="featRow">
+            <button className={`chip ${panels.stats ? "on" : ""}`} onClick={() => onTogglePanel("stats")}>
+              {panels.stats ? "ON" : "OFF"}
+            </button>
+          </div>
+
+          <div className="secLabel">{t("Stats layout")}</div>
+          <div className="featRow">
+            {(["bars", "circles"] as const).map((style) => (
+              <button
+                key={style}
+                className={`chip ${statsStyle === style ? "on" : ""}`}
+                aria-pressed={statsStyle === style}
+                onClick={() => {
+                  setStatsStyle(style);
+                  void window.isleOverlay.setSettings({ statsStyle: style });
+                }}
+              >
+                {t(style === "bars" ? "Bars" : "Circles").toUpperCase()}
               </button>
             ))}
           </div>
 
+          <div className="secLabel">{t("Stat colors")}</div>
+          <ColorRow label={t("Health")} value={theme.stat.health} onChange={(v) => setStat("health", v)} />
+          <ColorRow label={t("Stamina")} value={theme.stat.stamina} onChange={(v) => setStat("stamina", v)} />
+          <ColorRow label={t("Hunger")} value={theme.stat.food} onChange={(v) => setStat("food", v)} />
+          <ColorRow label={t("Thirst")} value={theme.stat.water} onChange={(v) => setStat("water", v)} />
+          </>)}
+          {cat === "prime" && (<>
+          <div className="secLabel">{t("PRIME")}</div>
+          <div className="hint">{t("Tracks Prime Elder eligibility progress.")}</div>
+          <div className="featRow">
+            <button className={`chip ${panels.prime ? "on" : ""}`} onClick={() => onTogglePanel("prime")}>
+              {panels.prime ? "ON" : "OFF"}
+            </button>
+          </div>
+          <div className="hint" style={{ marginTop: 6 }}>{t("PRIME uses the overlay's accent color. Change it under Appearance → Theme.")}</div>
+          </>)}
+          {cat === "heart" && (<>
+          <div className="secLabel">{t("HP Heart")}</div>
+          <div className="hint">{t("A floating heart that fills based on health.")}</div>
+          <div className="featRow">
+            <button className={`chip ${panels.heart ? "on" : ""}`} onClick={() => onTogglePanel("heart")}>
+              {panels.heart ? "ON" : "OFF"}
+            </button>
+          </div>
+
+          <div className="secLabel">{t("Color")}</div>
+          <ColorRow label={t("Heart")} value={theme.heart} onChange={(v) => onTheme({ ...theme, heart: v })} />
           </>)}
           {cat === "radar" && (<>
           <div className="secLabel">{t("Live radar")}</div>
@@ -572,41 +640,6 @@ function SettingsPanel({
                 }}
               >
                 {lbl}
-              </button>
-            ))}
-          </div>
-
-          <div className="secLabel">{t("Stats layout")}</div>
-          <div className="featRow">
-            {(["bars", "circles"] as const).map((style) => (
-              <button
-                key={style}
-                className={`chip ${statsStyle === style ? "on" : ""}`}
-                aria-pressed={statsStyle === style}
-                onClick={() => {
-                  setStatsStyle(style);
-                  void window.isleOverlay.setSettings({ statsStyle: style });
-                }}
-              >
-                {t(style === "bars" ? "Bars" : "Circles").toUpperCase()}
-              </button>
-            ))}
-          </div>
-
-          <div className="secLabel">{t("HUD background")}</div>
-          <div className="hint">{t("Choose a solid panel or remove the background behind floating HUD widgets.")}</div>
-          <div className="featRow">
-            {([false, true] as const).map((transparent) => (
-              <button
-                key={String(transparent)}
-                className={`chip ${hudTransparent === transparent ? "on" : ""}`}
-                aria-pressed={hudTransparent === transparent}
-                onClick={() => {
-                  setHudTransparent(transparent);
-                  void window.isleOverlay.setSettings({ hudTransparent: transparent });
-                }}
-              >
-                {t(transparent ? "Transparent" : "Default").toUpperCase()}
               </button>
             ))}
           </div>
@@ -776,6 +809,21 @@ function SettingsPanel({
 
           </>)}
           {cat === "appearance" && (<>
+          <div className="secLabel">{t("Edit HUD layout")}</div>
+          <div className="hint">{t("Turn this on to drag and resize overlay widgets in-game; turn it off to click through the overlay again.")}</div>
+          {!gameDetected ? (
+            <div className="hint">{t("Requires The Isle to be running.")}</div>
+          ) : null}
+          <div className="featRow">
+            <button
+              className={`chip ${hudEditMode ? "on" : ""}`}
+              disabled={!gameDetected}
+              onClick={() => void window.isleOverlay.hudEdit.set(!hudEditMode)}
+            >
+              {hudEditMode ? "ON" : "OFF"}
+            </button>
+          </div>
+
           <div className="secLabel">{t("Language")}</div>
           <div className="featRow">
             {(["en", "vi"] as const).map((nextLanguage) => (
@@ -800,11 +848,23 @@ function SettingsPanel({
           </div>
           <ColorRow label={t("Accent")} value={theme.accent} onChange={(v) => onTheme({ ...theme, accent: v })} />
 
-          <div className="secLabel">{t("Stat colors")}</div>
-          <ColorRow label={t("Health")} value={theme.stat.health} onChange={(v) => setStat("health", v)} />
-          <ColorRow label={t("Stamina")} value={theme.stat.stamina} onChange={(v) => setStat("stamina", v)} />
-          <ColorRow label={t("Hunger")} value={theme.stat.food} onChange={(v) => setStat("food", v)} />
-          <ColorRow label={t("Thirst")} value={theme.stat.water} onChange={(v) => setStat("water", v)} />
+          <div className="secLabel">{t("HUD background")}</div>
+          <div className="hint">{t("Choose a solid panel or remove the background behind floating HUD widgets.")}</div>
+          <div className="featRow">
+            {([false, true] as const).map((transparent) => (
+              <button
+                key={String(transparent)}
+                className={`chip ${hudTransparent === transparent ? "on" : ""}`}
+                aria-pressed={hudTransparent === transparent}
+                onClick={() => {
+                  setHudTransparent(transparent);
+                  void window.isleOverlay.setSettings({ hudTransparent: transparent });
+                }}
+              >
+                {t(transparent ? "Transparent" : "Default").toUpperCase()}
+              </button>
+            ))}
+          </div>
 
           <div className="secLabel">{t("Opacity")}</div>
           <input
@@ -852,8 +912,6 @@ function SettingsPanel({
           <div className="hint">{[settings?.serverName ?? "TheIsleHud", settings?.overlayLabel].filter(Boolean).join(" ")} · v{__APP_VERSION__}</div>
           <div className="hint">Coded by mrt98dev</div>
           </>)}
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -882,7 +940,6 @@ function useMe(authed: boolean): PlayerMe | null {
 }
 
 const LIVE_RENDER_INTERVAL_MS = 50;
-const LIVE_STALE_MS = 4000;
 
 function useLive(authed: boolean): LiveFrame | null {
   const [live, setLive] = useState<LiveFrame | null>(null);
@@ -893,16 +950,16 @@ function useLive(authed: boolean): LiveFrame | null {
     }
     let pending: LiveFrame | null = null;
     let flushTimer: number | null = null;
-    let staleTimer: number | null = null;
     const flush = () => {
       flushTimer = null;
       if (!pending) return;
       const next = pending;
       pending = null;
       setLive(next);
-      if (staleTimer != null) window.clearTimeout(staleTimer);
-      staleTimer = window.setTimeout(() => setLive(null), LIVE_STALE_MS);
     };
+    // No stale-clears-to-null timeout on purpose — a brief gap between live
+    // frames shouldn't blank out the last known position/stats. See App.tsx's
+    // useLive for the full reasoning.
     const off = window.isleOverlay.onLive((d) => {
       pending = d;
       if (flushTimer == null) flushTimer = window.setTimeout(flush, LIVE_RENDER_INTERVAL_MS);
@@ -910,7 +967,6 @@ function useLive(authed: boolean): LiveFrame | null {
     return () => {
       off();
       if (flushTimer != null) window.clearTimeout(flushTimer);
-      if (staleTimer != null) window.clearTimeout(staleTimer);
     };
   }, [authed]);
   return live;
@@ -940,20 +996,34 @@ function MenuShell({
   me,
   theme,
   settings,
+  panels,
+  opacity,
   authed,
+  gameDetected,
   ticketUnread,
   ticketUrgent,
   onLogin,
-  onSettings,
+  onTheme,
+  onOpacity,
+  onTogglePanel,
+  onLogout,
+  onQuit,
 }: {
   me: PlayerMe | null;
   theme: OverlayTheme;
   settings: OverlaySettings | null;
+  panels: Record<string, boolean>;
+  opacity: number;
   authed: boolean;
+  gameDetected: boolean;
   ticketUnread: number;
   ticketUrgent: boolean;
   onLogin: () => void;
-  onSettings: () => void;
+  onTheme: (t: OverlayTheme) => void;
+  onOpacity: (v: number) => void;
+  onTogglePanel: (k: string) => void;
+  onLogout: () => void;
+  onQuit: () => void;
 }) {
   const language = settings?.language ?? "en";
   const t = (text: string) => tr(language, text);
@@ -1030,7 +1100,9 @@ function MenuShell({
           </svg>
           <span className="brandName">{settings?.serverName ?? "TheIsleHud"}</span>
           <span className="brandSep">/</span>
-          <span className="brandCtx">{t(TABS.find((item) => item.key === tab)?.label ?? "Dashboard")}</span>
+          <span className="brandCtx">
+            {tab === "settings" ? t("Settings") : t(TABS.find((item) => item.key === tab)?.label ?? "Dashboard")}
+          </span>
         </span>
         <span className="topStatus">
           <span className={`liveDot ${me?.hasData ? "on" : ""}`} />
@@ -1046,84 +1118,100 @@ function MenuShell({
           </button>
         ) : null}
         <span className="topVer">v{__APP_VERSION__}</span>
-        <button className="iconBtn" onClick={onSettings} title={t("Settings")} aria-label={t("Settings")}>
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
-          </svg>
-        </button>
       </div>
 
-      {!authed ? (
-        <div className="gate">
-          <svg className="gateMark" viewBox="0 0 24 24" width="48" height="48" aria-hidden="true">
-            <path d="M12 2 21 7v10l-9 5-9-5V7l9-5Z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
-            <path d="M12 7 16 9.5v5L12 17l-4-2.5v-5L12 7Z" fill="currentColor" opacity="0.9" />
-          </svg>
-          <div className="gateTtl">{t("Sign in to")} {settings?.serverName ?? "TheIsleHud"}</div>
-          <div className="gateSub">{t("Log in with Steam to load your dino stats, garage, skins and the live map.")}</div>
-          <button className="steamBtn" onClick={onLogin}>
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
-              <path d="M12 2a10 10 0 0 0-9.9 8.7l5.3 2.2a2.8 2.8 0 0 1 1.6-.5h.1l2.4-3.4v-.1a3.7 3.7 0 1 1 3.7 3.7h-.1l-3.4 2.4v.1a2.8 2.8 0 0 1-5.5.8L2 16.6A10 10 0 1 0 12 2Zm-3.6 15.2-1.2-.5a2.1 2.1 0 0 0 3.9-1 2.1 2.1 0 0 0-2.8-2l1.3.5a1.6 1.6 0 1 1-1.2 3Zm8.8-6.7a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5Z" />
-            </svg>
-            {t("Sign in with Steam")}
+      <div className="mainBody">
+        <div className="tabSidebar">
+          {authed
+            ? TABS.filter(
+                (tabItem) =>
+                  (tabItem.key !== "mapedit" || mapEditAdmin) && (tabItem.key !== "admin" || adminModeOn),
+              ).map((tabItem) => (
+                <button
+                  key={tabItem.key}
+                  className={`tab ${tab === tabItem.key ? "active" : ""}`}
+                  onClick={() => setTab(tabItem.key)}
+                >
+                  <TabIcon name={tabItem.key} />
+                  <span>{tr(language, tabItem.label)}</span>
+                  {tabItem.key === "admin" && ticketUnread > 0 ? (
+                    <span className={`tabBadge ${ticketUrgent ? "urgent" : ""}`}>{ticketUnread}</span>
+                  ) : null}
+                  {tabItem.ready ? null : <span className="tabSoon">soon</span>}
+                </button>
+              ))
+            : null}
+          <button
+            className={`tab tabSettings ${tab === "settings" ? "active" : ""}`}
+            onClick={() => setTab("settings")}
+          >
+            <TabIcon name="settings" />
+            <span>{t("Settings")}</span>
           </button>
-          <div className="gateHint">{t("Opens in your browser")}</div>
         </div>
-      ) : (
-        <div className="mainBody">
-          <div className="tabSidebar">
-            {TABS.filter(
-              (tabItem) =>
-                (tabItem.key !== "mapedit" || mapEditAdmin) && (tabItem.key !== "admin" || adminModeOn),
-            ).map((tabItem) => (
-              <button
-                key={tabItem.key}
-                className={`tab ${tab === tabItem.key ? "active" : ""}`}
-                onClick={() => setTab(tabItem.key)}
-              >
-                <TabIcon name={tabItem.key} />
-                <span>{tr(language, tabItem.label)}</span>
-                {tabItem.key === "admin" && ticketUnread > 0 ? (
-                  <span className={`tabBadge ${ticketUrgent ? "urgent" : ""}`}>{ticketUnread}</span>
-                ) : null}
-                {tabItem.ready ? null : <span className="tabSoon">soon</span>}
+        <div className="tabContent">
+          {tab === "settings" ? (
+            <SettingsTab
+              settings={settings}
+              theme={theme}
+              panels={panels}
+              opacity={opacity}
+              authed={authed}
+              gameDetected={gameDetected}
+              onTheme={onTheme}
+              onOpacity={onOpacity}
+              onTogglePanel={onTogglePanel}
+              onLogout={onLogout}
+              onQuit={onQuit}
+            />
+          ) : !authed ? (
+            <div className="gate">
+              <svg className="gateMark" viewBox="0 0 24 24" width="48" height="48" aria-hidden="true">
+                <path d="M12 2 21 7v10l-9 5-9-5V7l9-5Z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+                <path d="M12 7 16 9.5v5L12 17l-4-2.5v-5L12 7Z" fill="currentColor" opacity="0.9" />
+              </svg>
+              <div className="gateTtl">{t("Sign in to")} {settings?.serverName ?? "TheIsleHud"}</div>
+              <div className="gateSub">{t("Log in with Steam to load your dino stats, garage, skins and the live map.")}</div>
+              <button className="steamBtn" onClick={onLogin}>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+                  <path d="M12 2a10 10 0 0 0-9.9 8.7l5.3 2.2a2.8 2.8 0 0 1 1.6-.5h.1l2.4-3.4v-.1a3.7 3.7 0 1 1 3.7 3.7h-.1l-3.4 2.4v.1a2.8 2.8 0 0 1-5.5.8L2 16.6A10 10 0 1 0 12 2Zm-3.6 15.2-1.2-.5a2.1 2.1 0 0 0 3.9-1 2.1 2.1 0 0 0-2.8-2l1.3.5a1.6 1.6 0 1 1-1.2 3Zm8.8-6.7a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5Z" />
+                </svg>
+                {t("Sign in with Steam")}
               </button>
-            ))}
-          </div>
-          <div className="tabContent">
-            {/* Every tab below except Skin Editor (3D, mounted only on demand) stays
-                mounted once reached so its data survives switching away and back —
-                no refetch, no loading flash on return. */}
-            <div style={{ display: tab === "profile" ? "contents" : "none" }}>
-              <DashboardTab me={me} theme={theme} onGoto={setTab} supportOn={adminModeOn} language={language} />
+              <div className="gateHint">{t("Opens in your browser")}</div>
             </div>
-            <div style={{ display: tab === "livemap" ? "contents" : "none" }}>
-              <LiveMapTab authed={authed} onLogin={onLogin} />
-            </div>
-            {tab === "skin" ? <SkinEditorTab authed={authed} onLogin={onLogin} /> : null}
-            <div style={{ display: tab === "garage" ? "contents" : "none" }}>
-              <GarageTab authed={authed} onLogin={onLogin} active={tab === "garage"} />
-            </div>
-            {mapEditAdmin ? (
-              <div style={{ display: tab === "mapedit" ? "contents" : "none" }}>
-                <MapEditorTab authed={authed} onLogin={onLogin} active={tab === "mapedit"} />
+          ) : (
+            <>
+              {/* Every tab below except Skin Editor (3D, mounted only on demand) stays
+                  mounted once reached so its data survives switching away and back —
+                  no refetch, no loading flash on return. */}
+              <div style={{ display: tab === "profile" ? "contents" : "none" }}>
+                <DashboardTab me={me} theme={theme} onGoto={setTab} supportOn={adminModeOn} language={language} />
               </div>
-            ) : null}
-            {adminModeOn ? (
-              <div style={{ display: tab === "admin" ? "contents" : "none" }}>
-                <AdminTab authed={authed} onLogin={onLogin} />
+              {tab === "skin" ? <SkinEditorTab authed={authed} onLogin={onLogin} /> : null}
+              <div style={{ display: tab === "garage" ? "contents" : "none" }}>
+                <GarageTab authed={authed} onLogin={onLogin} active={tab === "garage"} />
               </div>
-            ) : null}
-            <div style={{ display: tab === "dinoshop" ? "contents" : "none" }}>
-              <DinoShopTab authed={authed} onLogin={onLogin} active={tab === "dinoshop"} />
-            </div>
-            <div style={{ display: tab === "skinshop" ? "contents" : "none" }}>
-              <SkinShopTab authed={authed} onLogin={onLogin} active={tab === "skinshop"} />
-            </div>
-          </div>
+              {mapEditAdmin ? (
+                <div style={{ display: tab === "mapedit" ? "contents" : "none" }}>
+                  <MapEditorTab authed={authed} onLogin={onLogin} active={tab === "mapedit"} />
+                </div>
+              ) : null}
+              {adminModeOn ? (
+                <div style={{ display: tab === "admin" ? "contents" : "none" }}>
+                  <AdminTab authed={authed} onLogin={onLogin} />
+                </div>
+              ) : null}
+              <div style={{ display: tab === "dinoshop" ? "contents" : "none" }}>
+                <DinoShopTab authed={authed} onLogin={onLogin} active={tab === "dinoshop"} />
+              </div>
+              <div style={{ display: tab === "skinshop" ? "contents" : "none" }}>
+                <SkinShopTab authed={authed} onLogin={onLogin} active={tab === "skinshop"} />
+              </div>
+            </>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -1136,7 +1224,6 @@ export function MenuWindow() {
   const [theme, setThemeState] = useState<OverlayTheme>(DEFAULT_THEME);
   const [opacity, setOpacityState] = useState(1);
   const [blocked, setBlocked] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [ticketSummary, setTicketSummary] = useState({ unread: 0, urgent: false });
   const [overlayState, setOverlayState] = useState<OverlayState>({ gameDetected: false, active: false });
   const mounted = useRef(false);
@@ -1157,10 +1244,6 @@ export function MenuWindow() {
     const off = window.isleOverlay.onState(setOverlayState);
     return off;
   }, []);
-
-  useEffect(() => {
-    if (blocked) setSettingsOpen(false);
-  }, [blocked]);
 
   const me = useMe(auth.authed);
   const live = useLive(auth.authed);
@@ -1299,30 +1382,21 @@ export function MenuWindow() {
             me={view}
             theme={theme}
             settings={settings}
+            panels={panels}
+            opacity={opacity}
             authed={auth.authed}
+            gameDetected={overlayState.gameDetected}
             ticketUnread={ticketSummary.unread}
             ticketUrgent={ticketSummary.urgent}
             onLogin={login}
-            onSettings={() => setSettingsOpen((v) => !v)}
+            onTheme={setTheme}
+            onOpacity={setOpacity}
+            onTogglePanel={togglePanel}
+            onLogout={logout}
+            onQuit={quit}
           />
         )}
       </div>
-      {settingsOpen ? (
-        <SettingsPanel
-          settings={settings}
-          theme={theme}
-          panels={panels}
-          opacity={opacity}
-          authed={auth.authed}
-          gameDetected={overlayState.gameDetected}
-          onTheme={setTheme}
-          onOpacity={setOpacity}
-          onTogglePanel={togglePanel}
-          onLogout={logout}
-          onQuit={quit}
-          onClose={() => setSettingsOpen(false)}
-        />
-      ) : null}
     </div>
   );
 }

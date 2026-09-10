@@ -9,7 +9,6 @@ const VI: Record<string, string> = {
   Appearance: "Giao diện",
   Account: "Tài khoản",
   Dashboard: "Bảng điều khiển",
-  "Live Map": "Bản đồ trực tiếp",
   "Skin Editor": "Chỉnh sửa skin",
   Garage: "Nhà xe",
   "Dino Shop": "Cửa hàng khủng long",
@@ -114,6 +113,14 @@ const VI: Record<string, string> = {
   Transparent: "Trong suốt",
   "No Prime data": "Chưa có dữ liệu Prime",
   "Eligible for Prime Elder": "Đủ điều kiện lên Prime Elder",
+  "Shows server name and player count on the HUD.": "Hiển thị tên máy chủ và số người chơi trên HUD.",
+  "Shows a compass pointing to tracked map items.": "Hiển thị la bàn chỉ hướng tới các điểm được theo dõi trên bản đồ.",
+  "Shows health, stamina, hunger and thirst.": "Hiển thị máu, thể lực, đói và khát.",
+  "Tracks Prime Elder eligibility progress.": "Theo dõi tiến trình đủ điều kiện Prime Elder.",
+  "PRIME uses the overlay's accent color. Change it under Appearance → Theme.": "PRIME dùng màu accent chung của overlay. Đổi tại Giao diện → Theme.",
+  "A floating heart that fills based on health.": "Trái tim nổi, đầy vơi theo lượng máu.",
+  Color: "Màu sắc",
+  Heart: "Tim",
 };
 
 const PRIME_QUEST_VI: Record<string, string> = {
